@@ -22,12 +22,18 @@ test "codeOf: maps each error variant to its code" {
 }
 
 test "errorOf: maps code back to error variant" {
-    // Compare via int to avoid nominal type aliasing mismatch between IoSpace.Error
-    // (the E type alias inside the generated struct) and the IoErrors declared in
-    // this test file — both are the same error set structurally.
-    try testing.expectEqual(@intFromError(IoSpace.Error.FILE_NOT_FOUND), @intFromError(IoSpace.errorOf(1000).?));
-    try testing.expectEqual(@intFromError(IoSpace.Error.PERMISSION_DENIED), @intFromError(IoSpace.errorOf(1001).?));
-    try testing.expectEqual(@intFromError(IoSpace.Error.INVALID_HANDLE), @intFromError(IoSpace.errorOf(1002).?));
+    try testing.expectEqual(
+        @intFromError(IoSpace.Error.FILE_NOT_FOUND),
+        @intFromError(IoSpace.errorOf(1000).?),
+    );
+    try testing.expectEqual(
+        @intFromError(IoSpace.Error.PERMISSION_DENIED),
+        @intFromError(IoSpace.errorOf(1001).?),
+    );
+    try testing.expectEqual(
+        @intFromError(IoSpace.Error.INVALID_HANDLE),
+        @intFromError(IoSpace.errorOf(1002).?),
+    );
 }
 
 test "errorOf: unknown code returns null" {
@@ -72,4 +78,54 @@ test "emitTypeScript: TypeScript union syntax uses | prefix except last" {
     try testing.expect(std.mem.indexOf(u8, emitted, "  | \"FILE_NOT_FOUND\"").? >= 0);
     try testing.expect(std.mem.indexOf(u8, emitted, "  | \"PERMISSION_DENIED\"").? >= 0);
     try testing.expect(std.mem.indexOf(u8, emitted, "  \"INVALID_HANDLE\"").? >= 0);
+}
+
+// ── Multi-domain space (simulated via flat entries with non-overlapping ranges) ──
+
+const MultiErrors = error{
+    FILE_NOT_FOUND,
+    PERMISSION_DENIED,
+    INVALID_HANDLE,
+    INVALID_UTF8,
+    BUFFER_OVERFLOW,
+};
+
+const MultiSpace = errors.ErrorSpace(MultiErrors, &[_]errors.Entry{
+    .{ .tag = "FILE_NOT_FOUND", .code = 1000, .message = "File not found" },
+    .{ .tag = "PERMISSION_DENIED", .code = 1001, .message = "Permission denied" },
+    .{ .tag = "INVALID_HANDLE", .code = 1002, .message = "Invalid handle" },
+    .{ .tag = "INVALID_UTF8", .code = 2000, .message = "Invalid UTF-8 sequence" },
+    .{ .tag = "BUFFER_OVERFLOW", .code = 2001, .message = "Buffer overflow" },
+});
+
+test "multi-domain: codeOf maps across domains" {
+    try testing.expectEqual(@as(MultiSpace.Code, 1000), MultiSpace.codeOf(MultiSpace.Error.FILE_NOT_FOUND));
+    try testing.expectEqual(@as(MultiSpace.Code, 1002), MultiSpace.codeOf(MultiSpace.Error.INVALID_HANDLE));
+    try testing.expectEqual(@as(MultiSpace.Code, 2000), MultiSpace.codeOf(MultiSpace.Error.INVALID_UTF8));
+    try testing.expectEqual(@as(MultiSpace.Code, 2001), MultiSpace.codeOf(MultiSpace.Error.BUFFER_OVERFLOW));
+}
+
+test "multi-domain: errorOf maps across domains" {
+    try testing.expectEqual(
+        @intFromError(MultiSpace.Error.FILE_NOT_FOUND),
+        @intFromError(MultiSpace.errorOf(1000).?),
+    );
+    try testing.expectEqual(
+        @intFromError(MultiSpace.Error.INVALID_UTF8),
+        @intFromError(MultiSpace.errorOf(2000).?),
+    );
+}
+
+test "multi-domain: messageOf maps across domains" {
+    try testing.expectEqualStrings("File not found", MultiSpace.messageOf(1000).?);
+    try testing.expectEqualStrings("Invalid UTF-8 sequence", MultiSpace.messageOf(2000).?);
+    try testing.expectEqualStrings("Buffer overflow", MultiSpace.messageOf(2001).?);
+}
+
+test "multi-domain: emitTypeScript emits both domains" {
+    const emitted = MultiSpace.emitTypeScript();
+    try testing.expect(std.mem.indexOf(u8, emitted, "1000: \"FILE_NOT_FOUND\"").? >= 0);
+    try testing.expect(std.mem.indexOf(u8, emitted, "1002: \"INVALID_HANDLE\"").? >= 0);
+    try testing.expect(std.mem.indexOf(u8, emitted, "2000: \"INVALID_UTF8\"").? >= 0);
+    try testing.expect(std.mem.indexOf(u8, emitted, "2001: \"BUFFER_OVERFLOW\"").? >= 0);
 }

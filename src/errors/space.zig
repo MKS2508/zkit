@@ -16,10 +16,6 @@
 //! });
 //! ```
 //!
-//! The error set (`E`) is the canonical source of truth. Every variant in `E`
-//! must have a corresponding entry in the config with a matching `tag`. The
-//! switch in `codeOf` is exhaustive: forgetting an entry is a compile error.
-//!
 //! Exposes: `Space.Code` (u16), `Space.Error` (the error set type),
 //! `Space.codeOf(err)`, `Space.errorOf(code)`, `Space.messageOf(code)`,
 //! `Space.emitTypeScript()`.
@@ -42,11 +38,14 @@ pub const Entry = struct {
 ///
 /// - `E`: the error set type. Must contain one variant for every entry tag.
 /// - `entries`: flat slice of `Entry`. Each entry's `tag` must match a variant
-///   in `E` and each `code` must be unique across all entries.
+///   in `E` and each `code` must be unique.
 ///
 /// Adding an entry without a matching error variant produces a compile error
 /// in `codeOf` (exhaustive switch). Adding an error variant without an entry
 /// produces a compile error in `errorOf` (unreachable branch).
+///
+/// Range validity (non-overlapping codes) is NOT enforced at compile time by
+/// this API — callers must ensure uniqueness of codes manually.
 pub fn ErrorSpace(comptime E: type, comptime entries: []const Entry) type {
     const n = entries.len;
 
@@ -54,13 +53,12 @@ pub fn ErrorSpace(comptime E: type, comptime entries: []const Entry) type {
         pub const Error = E;
         pub const Code = u16;
 
-        // ── codeOf ───────────────────────────────────────────────────────────
-        // Exhaustive switch: compiler catches a missing entry if a new error
-        // variant is added without a config entry.
+        // ── codeOf ────────────────────────────────────────────────────────────
+        // Exhaustive switch: compiler verifies every entry has a matching error variant.
 
         pub fn codeOf(err: Error) Code {
             inline for (entries) |entry| {
-                if (@as(E, @field(E, entry.tag)) == err) {
+                if (@field(E, entry.tag) == err) {
                     return entry.code;
                 }
             }
@@ -68,12 +66,12 @@ pub fn ErrorSpace(comptime E: type, comptime entries: []const Entry) type {
         }
 
         // ── errorOf ─────────────────────────────────────────────────────────
-        // Linear scan: adding an error variant without an entry hits unreachable.
+        // Adding an error variant without an entry hits unreachable.
 
         pub fn errorOf(code: Code) ?Error {
             inline for (entries) |entry| {
                 if (entry.code == code) {
-                    return @field(Error, entry.tag);
+                    return @field(E, entry.tag);
                 }
             }
             return null;
@@ -105,14 +103,20 @@ pub fn ErrorSpace(comptime E: type, comptime entries: []const Entry) type {
             // CODE_TO_NAME
             out = out ++ "export const CODE_TO_NAME: Record<number, ErrorCode> = {\n";
             inline for (entries) |entry| {
-                out = out ++ std.fmt.comptimePrint("  {d}: \"{s}\",\n", .{ entry.code, entry.tag });
+                out = out ++ std.fmt.comptimePrint("  {d}: \"{s}\",\n", .{
+                    entry.code,
+                    entry.tag,
+                });
             }
             out = out ++ "};\n\n";
 
             // CODE_TO_MESSAGE
             out = out ++ "export const CODE_TO_MESSAGE: Record<number, string> = {\n";
             inline for (entries) |entry| {
-                out = out ++ std.fmt.comptimePrint("  {d}: \"{s}\",\n", .{ entry.code, entry.message });
+                out = out ++ std.fmt.comptimePrint("  {d}: \"{s}\",\n", .{
+                    entry.code,
+                    entry.message,
+                });
             }
             out = out ++ "};\n\n";
 
