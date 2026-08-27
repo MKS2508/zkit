@@ -169,6 +169,48 @@ locks:
       zkit nace standalone: CERO aristas `.zon` desde styx o hyperdiff en esta
       pasada. Compone con lock/extract-while-migrating — el camino verde NO
       depende de que zkit exista.
+    amendment:
+      date: '2026-08-27 23:00'
+      quote: 'waxin, AskUserQuestion: despacha trans/wire-hyperdiff'
+      decision: >-
+        LEVANTADO SOLO PARA HYPERDIFF. La arista `.zon` zkit→hyperdiff se wirea en
+        esta pasada, con el parity gate de lock/bindings-parity como metodo
+        obligatorio. styx NO: sigue esperando al merge de `chore/zig-017-convergence`
+        a master, que es un gate distinto (master de styx no compila bajo 1884).
+      asymmetry: >-
+        Los dos consumidores dejan de estar simetricos a proposito. hyperdiff puede
+        porque su toolchain YA esta en el destino (0.17.0-dev.1884, green/hyperdiff-versions
+        done). styx no puede porque el suyo no ha aterrizado. La asimetria es de
+        CAPACIDAD, no de criterio — avisar a axon2 para que no la lea como excepcion
+        arbitraria.
+
+  - id: lock/matriz-al-final
+    date: '2026-08-27 23:00'
+    quote: >-
+      'y si dejamos la tanda para cuando este ya todo el codigo perfecto, todas las
+      versiones alineadas, todo republicado, consumiendo zkit perfecto etc en lugar
+      de una por tanda que nos retrasa mucho?'
+    decision: >-
+      La matriz v4 completa se corre UNA VEZ, al final: codigo final, versiones
+      alineadas, paquetes republicados y zkit consumido. NO una por tanda.
+    rationale: >-
+      Una matriz por tanda mide una revision que nadie va a shippear, y la invalida
+      el siguiente merge. Los gates G1-G7 certifican un RELEASE, no un
+      work-in-progress. Con 6 intentos fallidos a la espalda, un septimo sobre codigo
+      no-final es sunk cost con disfraz de rigor. Ademas elimina de raiz la colision
+      CPU/estabilidad-de-codigo: no hace falta worktree pinneado ni parar la flota.
+    riskAccepted: >-
+      Se pierde el aviso temprano de regresion: si algo regresa a mitad, se descubre
+      al final y cuesta atribuirlo al merge que lo movio.
+    mitigation: >-
+      El tripwire YA existe y no se estaba usando: bench-gate.yml corre bench:matrix
+      + bench:gate en cada PR y nightly a las 05:00 UTC, en runners de GitHub (cero
+      bloqueo local). Dos arreglos para que sirva: (1) su baseline es
+      baseline-2026-04-19.json, CUATRO MESES viejo — anterior a SDK v1, a hyper-margin
+      entero y a los fixes de esta noche, asi que hoy no detecta nada; refrescarlo tras
+      cada tanda de merges. (2) sigue en modo no-enforcing (continue-on-error + gate
+      solo falla con vars.BENCH_ENFORCE=true). CI detecta DERIVA RELATIVA; los numeros
+      absolutos de los gates siguen siendo del mac.
   - id: lock/bindings-parity
     date: '2026-08-27'
     decision: >-
@@ -752,8 +794,9 @@ nodes:
     track: bugs
     repo: hyperdiff
     owner: axon1
-    title: 'Matriz v4 completa (intento 6)'
-    status: blocked
+    title: 'Matriz v4 completa (intento 7, y ultimo)'
+    status: deferred
+    deferredBy: 'lock/matriz-al-final (waxin 2026-08-27 23:00)'
     blockedBy: >-
       Lanes vivas sobre el código que la matriz mide (lock de waxin, AskUserQuestion
       2026-08-27): napi-audit edita core/packages/napi/**, que es el adaptador que usa
@@ -1007,7 +1050,8 @@ nodes:
     repo: zkit
     owner: null
     title: 'Wirear zkit en hyperdiff (arista .zon) — con parity gate'
-    status: blocked
+    status: pending
+    unblockedBy: 'lock/standalone amendment 2026-08-27 23:00 — levantado solo para hyperdiff'
     dependsOn: [zkit/green, zkit/errors-mechanism]
     dod: >-
       HEREDADO de zkit/errors-mechanism (split 2026-08-27, lock de waxin):
