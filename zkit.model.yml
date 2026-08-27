@@ -114,17 +114,10 @@ fleet:
     globs: ['src/errors.zig', 'src/root.zig', 'docs/design/**']
     nodes: [zkit/errors-mechanism]
     blockedBy: 'embargo de compilación hasta fin de matriz'
-  - lane: zig-forge
-    repo: styx
-    axon: axon2
-    model: minimax
-    globs: ['native/zig/**']
-    nodes: [trans/styx-log-convention]
-    blockedBy: 'embargo de worktree/compilación hasta fin de matriz'
-    note: >-
-      elysia-svc-forge y ui-forge (definidas en .siblings.toml de styx) NO entran en esta
-      flota: cero nodos de este SSOT asignados hoy. No las copio solo porque estén
-      escritas — cuando tengan trabajo real de este programa, entran.
+
+# axon2 (styx) SIN lane hoy: trans/styx-log-convention se mató (ver nodes track trans +
+# gt/styx-logging-already-consistent) tras medirse que la premisa era falsa. elysia-svc-forge
+# y ui-forge tampoco entran — cero nodos de este SSOT asignados. No hay churn que no exista.
 
 # Vocabulario de `status`. La distinción que importa con flota:
 #   pending → in_progress → reported → done
@@ -338,6 +331,23 @@ groundTruth:
       485 l) son 3 disciplinas de concurrencia distintas. Fusionarlas sería
       flexibilidad especulativa. Lo que SÍ se repite son las convenciones
       (taxonomía de errores + logging scoped), que existen sólo en hyperdiff.
+  - id: gt/styx-logging-already-consistent
+    date: '2026-08-27'
+    origin: 'axon2, verificado independientemente tras corrección de axon1 (su 44 estaba contaminado con código vendorizado)'
+    fact: >-
+      native/zig/** de styx YA scopea el 100% de sus logs: 29 `std.log.scoped(.atom)`
+      en 28 ficheros / 12 directorios, CERO llamadas sueltas a
+      `std.log.{info,warn,err,debug}` directo (grep exacto, no muestreo). Y no es
+      decorativo: `media-daemon/main.zig` configura `std_options.log_scope_levels`
+      de verdad (`.moqt_wire` a `.info` por encima del resto en `.debug`), o sea que
+      el scoping nativo de std SÍ filtra por nivel en producción. Comparado con el
+      wrapper de `src/log.zig` de zkit (string `name` + prefijo `"[{s}] "` manual,
+      SIN engancharse a `log_scope_levels`): el mecanismo nativo de styx es
+      estrictamente más capaz, no al revés. Implicación para `trans/wire-consumers`
+      (hoy deferred) cuando se retome: la pregunta no es "¿cómo migra styx a la
+      convención de zkit/log?", es "¿por qué zkit/log no usa ya el scoping real de
+      std en vez de reinventarlo con un prefijo de texto?". No hay churn que hacer
+      en styx hoy — `trans/styx-log-convention` se mató por esto.
 
 # ── NODOS DEL PROGRAMA ──────────────────────────────────────────────────────
 nodes:
@@ -699,23 +709,21 @@ nodes:
     track: trans
     repo: styx
     owner: axon2
-    title: 'Converger std.log.scoped(.atom) a la convención de zkit/log (scoped(name)+prefijo), SIN arista .zon'
-    status: designed
+    title: '[MATADO] Converger std.log.scoped a la convención de zkit/log'
+    status: deferred
     dependsOn: []
-    dod: >-
-      0 `std.log.scoped(` directo en native/zig/** (fuera de docs/references/quic-zig y
-      zig-pkg/, ajenos); reemplazado por un `scoped(name: []const u8)` local que replica
-      el interfaz de zkit/log (prefijo `"[{s}] " ++ fmt` + 4 métodos debug/info/warn/err);
-      zig build test limpio en los 3 build roots tocados.
-    evidence: 'handoff: docs/handoffs/LAUNCH-zig-forge.md'
     note: >-
-      Candidato de axon1. Verificado por mí antes de aceptarlo: 29 declaraciones
-      `std.log.scoped(.atom)` en 27 ficheros / 12 directorios reales bajo native/zig/**
-      — el conteo de directorios coincide con lo reportado (12), el de declaraciones no
-      (dijeron 44, salen 29 con `grep -c`; anotado, no reconciliado, se lo pido al sibling
-      al cerrar). Cumple lock/standalone: es CONVENCIÓN replicada en código propio de
-      styx, no dependencia — cero aristas .zon nuevas. Bloqueado por el embargo de
-      worktree hasta que muera la matriz; handoff ya escrito y listo para disparar al ping.
+      Muerto 2026-08-27, no reabrir sin evidencia nueva: la premisa era falsa. axon1
+      contó 44 std.log.scoped contaminando el conteo con código vendorizado
+      (docs/references/quic-zig + 2 copias de libxev en zig-pkg/); re-midiendo SOLO
+      native/zig/** da mis 29/12 (exactos) más una comprobación que cambia todo:
+      `grep -rn 'std.log.(info|warn|err|debug)('` sobre native/zig/** → CERO. styx no
+      tiene desorden de logging, ya scopea el 100% de sus logs de forma consistente.
+      Con lock/standalone prohibiendo la arista .zon, lo único que habría quedado era
+      renombrar scopes — churn puro, exactamente el refactor-adyacente-sin-pedir que
+      prohíbe la disciplina de código. Ver gt/styx-logging-already-consistent para el
+      hallazgo real que sí vale la pena conservar. `docs/handoffs/LAUNCH-zig-forge.md`
+      (rama styx `docs/log-convention-handoff`) se borra, quedó obsoleto.
 
 # ── Evidencia: dónde vive el porqué (NO duplicar aquí) ──────────────────────
 evidence:
