@@ -23,6 +23,7 @@ pub fn build(b: *std.Build) void {
         "src/log.zig",
         "src/test_reorder_buffer_bound.zig",
         "src/test_watchdog.zig",
+        "src/test_errors.zig",
     };
     for (standalone_tests) |src| {
         const t = b.addTest(.{

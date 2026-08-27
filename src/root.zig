@@ -11,3 +11,4 @@ pub const WatchdogStatus = @import("watchdog.zig").WatchdogStatus;
 pub const TrackingAllocator = @import("tracking_allocator.zig").TrackingAllocator;
 pub const HandleSlab = @import("handle.zig").HandleSlab;
 pub const log = @import("log.zig");
+pub const errors = @import("errors.zig");
