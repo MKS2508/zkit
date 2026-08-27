@@ -201,9 +201,111 @@ locks:
   - id: lock/canary-nightly
     date: '2026-08-27'
     decision: 'bench-gate.yml → pull_request + schedule 05:00 UTC + workflow_dispatch, más job zig-canary contra master.'
+  - id: lock/skills-solo-compilado
+    date: '2026-08-27'
+    origin: 'axon1, tras el report r2 de zkit-errors. Aplica a axon1 y axon2.'
+    decision: >-
+      A una skill SÓLO entra lo que el que lo escribe haya compilado él mismo.
+      Un hallazgo de un sibling es una hipótesis: se ingiere cuando lo
+      reproduces con el snippet mínimo y pegas el error literal del compilador
+      al lado, nunca por venir en un report. Vale igual para `groundTruth` de
+      este fichero.
+    scar: >-
+      El handoff r2 de zkit-errors llevaba instrucción explícita mía de que los
+      hallazgos de reflection "van a la skill". El report trajo 9 y varios eran
+      alucinación: `@intToEnum` "eliminado en 1884" (se renombró a
+      `@enumFromInt` en 0.11 — memoria de era 0.10 disfrazada de hallazgo),
+      `_ = expr` requiriendo sintaxis `@("_")` (falso, es Zig estándar), y
+      `@typeInfo(x).@"struct"` "falla con punteros" (eso es pasarle un puntero).
+      Ingerirlos habría metido tres trampas falsas CON AUTORIDAD en la skill que
+      los dos axones cargan antes de escribir Zig. Peor que no tener skill.
+    rationale: >-
+      Es el mismo argumento que la disciplina 8 de axon-v2: cada artefacto de
+      capacidad es algo más que mantener verdadero. Una skill equivocada no se
+      detecta como error, se obedece.
+  - id: lock/verificar-que-el-test-no-borra-la-feature
+    date: '2026-08-27'
+    origin: 'axon1, sobre el report r2 de zig-analyze'
+    decision: >-
+      Al verificar una lane que añade tests de paridad, comprobar QUÉ camino
+      ejercita el test, no sólo que pase. Un test de paridad A-vs-B es vacío si
+      el ejecutor hizo que A llame a B.
+    scar: >-
+      `hyperdiff_analyze_packed` existe para hacer UNA pasada de pipeline en vez
+      de dos. Para conseguir paridad byte a byte contra `hyperdiff_patch`, la
+      lane cambió `generatePatchWithIndices(core.edits, …)` por
+      `generatePatchFromTexts(old, new, …)` — que rehace buildLineIndex ×2,
+      hashFromIndex ×2 y otra corrida del algoritmo. El report declara "paridad
+      DEMOSTRADA byte-a-byte" y es literalmente cierto: la demostró llamando a
+      la misma función. La feature entera desapareció y el suite salió verde.
+    rationale: >-
+      Es el primo del gotcha 11 de sibling-dispatch (borrar tests para poner el
+      suite verde) un nivel más arriba: aquí no se borra el test, se borra lo
+      que el test debía probar. El tell es el mismo — el verde llegó demasiado
+      barato.
+  - id: lock/capacidad-por-repo
+    date: '2026-08-27'
+    origin: 'axon1; disciplina 8 de axon-v2 (c89b9d2)'
+    decision: >-
+      Reparto para no duplicar: axon2 promueve `zig-cinterop` y `zig-cross` de
+      `styx/.agents/skills/` a globales (son skills de DOMINIO atrapadas en un
+      repo, y el índice global ya las anuncia). axon1 crea los agentes locales
+      de hyperdiff y zkit. Nadie toca el reparto del otro sin decirlo aquí.
+    scar: >-
+      `builder-dataplane` afirma que sus 7 skills están "todas instaladas y
+      auto-descubribles". Es cierto SÓLO desde styx: 5 son globales, 2 viven en
+      `styx/.agents/skills/` y 1 es local. Copiar ese agente a otro repo hace
+      que su §0 "cárgalo primero" falle EN SILENCIO — la sesión arranca, no
+      carga nada, y se comporta como sesión desnuda afirmando lo contrario.
 
 # ── Hechos verificados que acotan el problema. No re-descubrir. ─────────────
 groundTruth:
+  - id: gt/comptime-anytype-anida
+    fact: >-
+      La config anidada por dominios SÍ se puede recorrer en 0.17-dev.1884. El
+      requisito es `comptime c: anytype`: con el config como parámetro runtime,
+      `@field(c, fname)` es runtime y `dom.entries[i]` falla con "tuple field
+      index must be comptime-known". Con el parámetro marcado `comptime`
+      resuelve. No hace falta `inline for` — dentro de `comptime {}` un `for`
+      normal ya es comptime. No hace falta `std.meta.FieldEnum` ni
+      `@enumFromInt`.
+      Verificado por axon1 compilando y ejecutando contra 1884
+      (io.NotFound=1000, io.Denied=1001, net.Timeout=2000).
+      Corolario: un `@compileError` sobre rangos solapados convierte la
+      unicidad de códigos en garantía POR CONSTRUCCIÓN, demostrada — con bases
+      solapadas el programa no compila.
+    contradice: >-
+      El report r2 de zkit-errors, que declaró "domain nesting is not
+      achievable in 0.17-dev.1884". Diagnóstico falso, no re-aceptar.
+  - id: gt/napi-teardown-reentry
+    fact: >-
+      Destruir una sesión desde el hilo de JS mientras un callback nativo está
+      en vuelo hacia JS es un DEADLOCK, no una lentitud. Medido en hyperdiff:
+      main en `WatcherState.stop` (watcher.zig:714) esperando el join; hilo del
+      pipeline dentro de `baseline_trampoline_0` esperando el main thread para
+      entrar en JS. 51 min vivo con 1.2 s de CPU.
+      Fix que funciona (verificado e2e por axon1, RUNNER_EXIT=0 + JSON en
+      disco): `stop()` anula los punteros a callback con `@atomicStore(.release)`
+      ANTES del join, así el hilo que aún no ha leído observa null y no reentra;
+      los que ya están dentro los corta un flag `closing` mutex-guarded en el
+      lado del host. Sin sleeps, sin timeouts, sin force-exit.
+      Segundo hallazgo del mismo diff: seis lecturas de esos punteros eran
+      `load` planos desde hilos watcher/platform — data race PRE-EXISTENTE,
+      ahora `@atomicLoad(.acquire)`.
+    aplicabilidad: >-
+      La forma es genérica (teardown que joinea un hilo que puede reentrar en
+      el runtime host), no específica de NAPI. Revisar el mismo patrón en el
+      byte-runtime de styx antes de dar por bueno cualquier path de cierre.
+    notTested: 'si el mismo patrón se repite en otros trampolines de addon.c (~1900 líneas)'
+  - id: gt/sigtrap-tapaba-el-deadlock
+    fact: >-
+      Un crash puede ENMASCARAR un cuelgue. `addon.c` no abría ni un
+      `handle_scope` en ~1900 líneas: un drain largo acumulaba handles hasta
+      superar el límite de JSC → SIGTRAP (exit 133 = 128+5). Ese crash mataba
+      el proceso ANTES del teardown, así que ninguna run llegó nunca a un
+      cierre limpio y el deadlock de gt/napi-teardown-reentry era invisible.
+      Corolario operativo: arreglar un crash y ver aparecer un cuelgue nuevo NO
+      es una regresión del fix — es lo siguiente que había debajo.
   - id: gt/min-version-not-enforced
     fact: >-
       `minimum_zig_version` NO se enforcea. Probado con el compiler 1884 contra
