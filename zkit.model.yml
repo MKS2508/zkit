@@ -304,8 +304,13 @@ nodes:
     repo: styx
     owner: axon2
     title: 'Mover gitlink del submodule docs/references/quic-zig'
-    status: blocked
+    status: done
     dependsOn: [green/quic-zig-push]
+    evidence: >-
+      rama styx `chore/zig-017-convergence` (desde master, sin push), commit
+      315e3a0 — submodule a e33c8b4144296200c937b8effd01fc3bb5a9de50 (tip
+      unify/zig-0.17). Verificado con git merge-base --is-ancestor + git
+      submodule status.
     note: 'axon2 tenía razón: mover el gitlink es el ÚLTIMO paso, no el segundo.'
 
   - id: green/styx-libxev-caches
@@ -313,8 +318,15 @@ nodes:
     repo: styx
     owner: axon2
     title: 'Las 2 cachés zig-pkg/ tras el bump de libxev'
-    status: blocked
+    status: done
     dependsOn: [green/styx-gitlink]
+    evidence: >-
+      Mismo commit 315e3a0. Cachés del hash viejo
+      (libxev-0.0.0-86vtc6gUFADXrA3PX99k2xjY0Nsyf6qx08pmEUOO4G6S) borradas en
+      native/zig/zig-pkg/ y docs/references/quic-zig/zig-pkg/ (rm -rf,
+      gitignored). La caché nueva NO se materializó (requiere zig
+      fetch/build, prohibido durante la matriz de bench) — se rellenará sola
+      en el próximo build real.
     note: >-
       native/zig/zig-pkg/libxev-… y docs/references/quic-zig/zig-pkg/libxev-…
       son copias byte-a-byte (build-roots distintos). Aplican en este paso
@@ -517,21 +529,46 @@ nodes:
     repo: styx
     owner: axon2
     title: 'Borrar spikes/candidate-h'
-    status: blocked
+    status: done
     dependsOn: [zkit/green]
     dod: 'rama nueva (NO sobre master, que tiene cambios sin relación sin commitear), git rm -r, commit conventional, SIN push'
+    evidence: >-
+      rama styx `chore/retire-candidate-h` (desde master, sin push), 4
+      commits: 763a31f (mover evidencia TKT-026/TKT-027 fuera del spike antes
+      de borrar — hallazgo de axon2 no cubierto por el dod original, ver
+      nota), f22c2d5 (git rm -r spikes/candidate-h, 51 ficheros/22067
+      líneas), f8dad4d (evidencia de cierre en
+      docs/outcome/foundation/evidence/tkt-030-candidate-h-retired-2026-08-27.md),
+      5f0d50a (fix de precisión sobre procedencia tracking_allocator/handle
+      en esa evidencia). Auditoría adversarial de 2ª pasada
+      (newRescueCandidates: []) corrida antes de borrar.
     note: >-
       ~20.2k líneas. axon2 revisó las cabeceras de todos los no-test: todo
       lleva "Candidate H" e invariantes C-numeradas ya promovidas al ADR d10.
       El único ítem fuera de ese patrón era watchdog.zig, ya rescatado.
+      HALLAZGO no cubierto por el dod original: spikes/candidate-h/ también
+      contenía T0-1-wake-spike/ (TKT-026) y U4-transport-buffer-spike/
+      (TKT-027), evidencia de dos tickets DONE ajenos a TKT-030 que
+      compartían el path. waxin decidió vía AskUserQuestion: mover esa
+      evidencia a docs/outcome/foundation/evidence/ ANTES de borrar (no
+      perderla, no dejarla huérfana). Motivo del cuidado: r44 línea 61 dice
+      literal que C12-e2e "permanece abierto hasta integrar U4" — esa
+      evidencia todavía se necesita.
 
   - id: retire/tkt-030-dod
     track: retire
     repo: styx
     owner: axon2
     title: 'Cerrar el DoD latente de TKT-030 en el SSOT de styx'
-    status: blocked
+    status: done
     dependsOn: [retire/candidate-h]
+    evidence: >-
+      docs/outcome/foundation/evidence/tkt-030-candidate-h-retired-2026-08-27.md
+      (commit f8dad4d, corregido en 5f0d50a) en la rama `chore/retire-
+      candidate-h` de styx. No se mutó styx.model.yml — TKT-030 nunca tuvo
+      nodo propio ahí (su plan lo dice explícito: "coarsened, no un id") y el
+      gate más cercano (outcome/foundation/f) es generated:true desde un
+      manifest, mutarlo por CLI rompería check:gates.
     note: 'TKT-030 está `done` y su Pass exige "el spike eliminado del árbol". No hace falta reabrirlo: nota de evidencia apuntando al commit de borrado + a zkit como destino.'
 
   # ── Track transversal ────────────────────────────────────────────────────
