@@ -1154,13 +1154,26 @@ nodes:
     title: 'Wirear zkit en styx (arista .zon) — habilita la promoción de Candidate H'
     status: blocked
     dependsOn: [zkit/green]
-    blockedBy: 'merge de la rama styx `chore/zig-017-convergence` a master (hoy sin mergear, en review de waxin)'
+    blockedBy: 'go de waxin en la reconciliación — el blocker TÉCNICO ya cayó (ver blockerHistory)'
+    blockerHistory:
+      - blocker: 'merge de la rama styx `chore/zig-017-convergence` a master'
+        resolved: '2026-08-28'
+        evidence: 'styx 32369c8 — `git merge-base --is-ancestor 32369c8 master` → ancestor. Verificado por axon2 (dueño del nodo) sobre el repo styx, no sobre un report.'
     note: >-
       OJO al secuenciar: `dependsOn: [zkit/green]` NO gatea nada — zkit/green ya está `done`
-      (a3ed91f). El gate real es que la convergencia de styx a 0.17.0-dev.1884 aterrice en
-      master; hasta entonces lock/standalone ("CERO aristas .zon EN ESTA PASADA") sigue vigente
-      y este nodo NO es accionable. lock/standalone no se enmienda — esta arista es posterior
-      a la pasada, no una excepción a ella.
+      (a3ed91f). El gate técnico era que la convergencia de styx a 0.17.0-dev.1884 aterrizara
+      en master, y ESO YA ESTÁ (32369c8, ver blockerHistory). Lo que queda NO es técnico: es
+      que lock/standalone ("CERO aristas .zon EN ESTA PASADA") se levantó por enmienda
+      2026-08-27 23:00 SÓLO PARA HYPERDIFF, y esa enmienda nombra explícitamente la condición
+      de styx («sigue esperando al merge de chore/zig-017-convergence»). La condición está
+      satisfecha, pero la enmienda la firma waxin vía AskUserQuestion, no axon2 — el levantado
+      para styx se hace igual que el de hyperdiff: waxin elige la lane, su respuesta ES el
+      lift, y se cita aquí en `unblockedBy`. axon2 NO se auto-autoriza la arista.
+      lock/standalone sigue sin enmendarse por esta vía.
+      RESTRICCIÓN DE EJECUCIÓN cuando se despache: el pin `.zon` debe apuntar a un commit de
+      zkit PUBLICADO (hoy `b93f626`; hay 1 commit local sin pushear por delante) — un pin a un
+      commit que sólo existe en el disco de waxin no es una dependencia, es un symlink con
+      pasos extra.
       PORQUÉ existe: styx `track/byte-runtime` (descongelado por dec-0102) promueve Candidate H,
       y las primitivas que necesita (SubscriberQueue, ReorderBuffer, HungWorkerWatchdog,
       HandleSlab) se rescataron AQUÍ. Reimplementarlas en styx sería des-ejecutar la condición
