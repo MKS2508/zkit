@@ -581,6 +581,56 @@ groundTruth:
       `release_fast`: esa grafía no ha existido nunca.
     addedToSkill: 'zig-0.17-migration fila 21 + nota in situ en el snippet (dotfiles 872aff0)'
 
+  - id: gt/test-que-defiende-el-bug
+    date: '2026-08-28'
+    verifiedBy: 'axon1, tsc sobre la salida del emisor por primera vez'
+    fact: >-
+      `ErrorSpace.emitTypeScript()` emitía el separador `|` en todos los
+      miembros de la unión MENOS el último, así que el `.ts` generado declaraba
+      un tipo al que le faltaba un código. Sobrevivió meses por dos motivos que
+      se refuerzan: nadie había compilado nunca su salida, y había un test
+      llamado literalmente `"union syntax uses | prefix except last"` que
+      **fijaba el bug como comportamiento esperado**. Un suite verde no dice
+      que el código esté bien; dice que el código hace lo que los tests
+      afirman. Cablear el generador de verdad lo destapó en el primer `tsc`.
+      Corolario operativo: cuando un emisor de código no tiene consumidor que
+      COMPILE su salida, sus tests sólo se comparan consigo mismos — es la
+      misma familia que `gt/gate-ciego-a-las-altas`.
+      (Extra del mismo fichero: tres aserciones usaban `indexOf(...).? >= 0`,
+      que siempre es cierto cuando no es null y panica cuando lo es.)
+
+  - id: gt/confirmar-un-bug-ajeno-sin-medirlo
+    date: '2026-08-28'
+    verifiedBy: 'axon1, fuerza bruta 200k ciclos contra el codigo original'
+    fact: >-
+      axon2 reportó que la generación `u16` con `+%=` de `HandleSlab` vuelve a
+      0 y que entonces el slot 0 entrega el handle `0`. axon1 leyó el mismo
+      `+%=` y lo confirmó. **Los dos estaban equivocados**: `alloc()` bumpea y
+      `free()` también, así que un slot vivo tiene siempre generación IMPAR, y
+      un impar nunca es 0. Medido: 200.000 ciclos alloc/free en el slot 0,
+      cero handles a 0, generación mínima 1. Lo que sí era real es que la
+      garantía existía por accidente aritmético y el docstring no decía si `0`
+      era centinela seguro — el consumidor no podía saberlo leyendo el fichero.
+      Corolario: un report de otro agente es una hipótesis igual que el de un
+      sibling. Leer el mismo fragmento que él leyó no es verificar; es repetir
+      su atajo. Cerrado en zkit `6ddb744` haciendo la garantía explícita, por
+      construcción y con test de control positivo.
+
+  - id: gt/extraer-sin-sustituir
+    date: '2026-08-28'
+    verifiedBy: 'axon1, barrido de @import("zkit") en todo el disco'
+    fact: >-
+      Tras scaffoldear zkit el 27-ago copiando primitivas de hyperdiff y de
+      styx/candidate-h, `@import("zkit")` aparecía **una sola vez en todo el
+      disco** (`hyperdiff/src/errors.zig:27`, y sólo en el gate). El original
+      `handle_slab.zig` de hyperdiff (9-abr) seguía vivo junto a su copia en
+      zkit (27-ago): 242 líneas cada uno, 3 de diferencia. Igual con
+      `TrackingAllocator`, vivo en styx. La extracción a una librería
+      compartida no reduce duplicación por sí sola — sin el paso de
+      sustitución sólo añade una copia más y una fuente de divergencia. Regla:
+      una extracción no está hecha hasta que el original está BORRADO.
+      hyperdiff cerrado en `80a8570`; styx queda en `trans/wire-styx`.
+
   - id: gt/addstepdependencies-es-noop
     date: '2026-08-28'
     verifiedBy: 'axon1, primary source + secuencia empirica sin rm -rf .zig-cache'
@@ -1127,7 +1177,7 @@ nodes:
     repo: zkit
     owner: axon1
     title: 'Wirear zkit en hyperdiff (arista .zon) — con parity gate'
-    status: partial
+    status: done
     unblockedBy: 'lock/standalone amendment 2026-08-27 23:00 — levantado solo para hyperdiff'
     dependsOn: [zkit/green, zkit/errors-mechanism]
     dod: >-
@@ -1146,14 +1196,20 @@ nodes:
       Alta sólo en el TS también en rojo (`expected 49, found 50`).
       Split limpio: la librería importa `errors_core.zig` (sin zkit), así que
       zkit es dependencia del gate y NO del binario publicado.
-    pendingHalf: >-
-      La MITAD DE GENERACIÓN, que es la que da nombre al DoD. `errors.ts` se
-      sigue escribiendo a mano: `emitTypeScript()` existe en zkit pero no está
-      cableado como escritor, y el gate compara valores, no texto generado.
-      Mientras no se cierre, `gt/errors-hand-synced` sigue siendo cierto — con
-      la diferencia de que ahora la divergencia es imposible de no ver en local.
-      Deuda menor asociada: el gate lleva una lista literal de los 49 códigos
-      dentro del test (tercera transcripción); derivarla de ErrorSpace la mata.
+    pendingHalf: null
+    closedFully: >-
+      2026-08-28, hyperdiff master 2574d44. La mitad de GENERACIÓN cerrada:
+      `errors.generated.ts` (269 líneas) lo escribe `zig build emit-errors`
+      desde ErrorSpace vía captureStdOut + addUpdateSourceFiles; `errors.ts`
+      queda como wrapper a mano con los 4 códigos engine-level y los nombres
+      publicados. La superficie npm no cambia. El gate pasa de comparar
+      VALORES a comparar TEXTO EXACTO: 248 → 118 líneas, muere el parser de
+      TypeScript y con él la lista literal de 49 códigos (la deuda de la
+      tercera transcripción se cierra sola). `gt/errors-hand-synced` deja de
+      ser cierto. Falsificado sin borrar caché: verde → cached → cambio sólo
+      en el .ts → ROJO (byte 3291) → restaurar → cached, con hash idéntico de
+      todos los .zig. Cablear el generador destapó de paso
+      `gt/emisor-con-test-que-defendia-el-bug`.
     blockedBy: null
     note: >-
       El parity gate (lock/bindings-parity) es el MÉTODO de este nodo, no su motivo de
