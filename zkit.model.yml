@@ -410,8 +410,18 @@ nodes:
     repo: styx
     owner: axon2
     title: '.zon de native/zig, candidate-h, media-core, media-core/sync → snapshot real'
-    status: pending
+    status: done
     dependsOn: []
+    evidence: >-
+      rama styx `chore/zig-017-convergence` (desde master, sin push), commit
+      e858592 — 4 ficheros: native/zig/build.zig.zon (0.17.0→dev.1884),
+      native/zig/media-core/build.zig.zon (0.16.0→dev.1884),
+      native/zig/media-core/sync/build.zig.zon (0.16.0-dev.3133→dev.1884),
+      spikes/candidate-h/build.zig.zon (0.17.0→dev.1884). Verificado con `git
+      show -- '*.zon'`, diff de una línea por fichero. Cierre sin compilar:
+      `minimum_zig_version` no lo aplica el compilador, es cosmético — no hay
+      riesgo que un build detecte y el edit ya está verificado a ojo.
+    note: 'green/styx-debug-tag sigue pending — ese sí toca .zig y necesita zig build real.'
 
   - id: green/hyperdiff-versions
     track: green
