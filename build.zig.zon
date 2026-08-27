@@ -1,7 +1,7 @@
 .{
     .name = .zkit,
     .version = "0.0.0",
-    .minimum_zig_version = "0.17.0-dev.1884+841dd0eb8",
+    .minimum_zig_version = "0.17.0-dev.1893+78e3b1c73",
     .fingerprint = 0x8213deee8836f9fd,
     .paths = .{
         "build.zig",

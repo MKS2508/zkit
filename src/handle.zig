@@ -12,6 +12,10 @@
 //!   - 16-bit generation → 65535 reuses before wrap (ABA window)
 //!   - 48-bit slot → 281 trillion slots (effectively unlimited)
 //!
+//! `0` is never a live handle, so consumers may use it as a NULL sentinel
+//! (styx does: `BufferHandle.NULL`). `alloc()` skips generation 0 to make
+//! that hold by construction rather than by arithmetic accident.
+//!
 //! ## Usage
 //!
 //! ```zig
@@ -80,12 +84,15 @@ pub fn HandleSlab(comptime T: type) type {
         /// Allocate a slot and return an opaque handle.
         ///
         /// The handle encodes `(generation << 48) | slot_index`.
+        /// Generation 0 is skipped, so a live handle is never `0` and
+        /// consumers may use `0` as a NULL sentinel.
         /// Returns `error.PoolFull` if no slots available.
         pub fn alloc(self: *Self, value: T) !u64 {
             if (self.free_count == 0) return error.PoolFull;
             self.free_count -= 1;
             const slot = self.free_list[self.free_count];
             self.generations[slot] +%= 1;
+            if (self.generations[slot] == 0) self.generations[slot] = 1;
             self.entries[slot] = value;
             return encodeHandle(self.generations[slot], slot);
         }
@@ -189,6 +196,23 @@ test "HandleSlab: full slab returns error" {
     _ = try slab.alloc(2);
 
     try std.testing.expectError(error.PoolFull, slab.alloc(3));
+}
+
+test "HandleSlab: 0 is never a live handle, across a full generation cycle" {
+    // Locks the NULL-sentinel guarantee for slot 0, the only slot whose
+    // handle could collide with 0. 200k alloc/free pairs bump the u16
+    // generation ~400k times, so the wrap is covered many times over.
+    var slab = try HandleSlab(u32).init(std.testing.allocator, 1);
+    defer slab.deinit();
+
+    var i: u32 = 0;
+    while (i < 200_000) : (i += 1) {
+        const h = try slab.alloc(i);
+        try std.testing.expect(h != 0);
+        try std.testing.expect(slab.generations[0] != 0);
+        try std.testing.expectEqual(@as(?u32, i), slab.get(h));
+        slab.free(h);
+    }
 }
 
 test "HandleSlab: double free is safe" {
