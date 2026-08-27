@@ -763,8 +763,15 @@ nodes:
     repo: hyperdiff
     owner: axon1
     title: 'catch {} que se traga errores de harness en 3 stacks'
-    status: blocked
+    status: done
+    closedBy: 'axon1 2026-08-27 21:30 — merge 49be97c (lane bench-harness, verificada)'
     dependsOn: [bugs/matrix-v4]
+    closeNote: >-
+      NO dependia de la matriz: la matriz estaba muerta por otra razon. Ademas del
+      catch {}, la lane porto git-cli-diff y gix-imara de chokidar a fs.watch —
+      chokidar 4.0.3 colapsa a ~5k paths bajo Bun/macOS (74-125s hasta ready, luego
+      CERO eventos change). Los stacks competidores median un watcher que no
+      observaba nada, que es peor que tragarse un error: es medir ruido como dato.
     sites: 'es-git-chokidar.ts:83,109,129 · gix-imara.ts:126,149,237 · libgit2-chokidar.ts:90,115,135'
     note: 'Mismo patrón corregido en git-cli-diff.ts (a3824d7). Afecta la honestidad de G1-G7: un competidor que no arranca se mide como lento. Va ANTES de evaluar gates.'
 
@@ -788,7 +795,7 @@ nodes:
     repo: hyperdiff
     owner: axon1
     title: 'hyperdiff_analyze — un diff por fichero, N ficheros por llamada'
-    status: designed
+    status: in_progress
     design: 'hyperdiff/docs/hyperdiff-analyze-design.md'
     evidence: 'gt/batch-wrong-target, gt/double-pipeline'
     lock: >-
@@ -805,10 +812,56 @@ nodes:
     repo: hyperdiff
     owner: axon1
     title: 'parallel.zig:100-104 colapsa todos los errores a error_code=1'
-    status: pending
+    status: reported
+    reportNote: >-
+      Arreglado en sib/zig-analyze (errors.errorToCode(err)), verificado por axon1,
+      pero NO mergeado: la rama va junto con bugs/batch-real-target, que volvio a r3.
     evidence: 'gt/parallel-error-collapse'
     note: 'Fix de una línea. Companion necesario de cualquier export batch: sin él, el export nuevo es inconsistente con los 42 códigos del resto de la superficie FFI.'
 
+  - id: bugs/napi-sigtrap
+    track: bugs
+    repo: hyperdiff
+    owner: axon1
+    title: 'addon.c sin un solo handle scope en ~1900 lineas → SIGTRAP (exit 133)'
+    status: done
+    closedBy: 'axon1 2026-08-27 — a161d0d'
+    evidence: 'gt/sigtrap-tapaba-el-deadlock'
+    note: >-
+      Causa de 2 de los 6 fallos de matriz (los otros 4 eran direct-full exit 1).
+      Bisect: blobCache y kqueue exonerados, correlacion perfecta con el callback
+      baseline. Fix = scope por invocacion con UN solo punto de cierre (cuerpo
+      extraido a baseline_sync_invoke; habia 3 returns tempranos que se escapaban).
+      NO era bug del bench: @mks2508/hyperdiff-napi esta publicado.
+  - id: bugs/napi-teardown-deadlock
+    track: bugs
+    repo: hyperdiff
+    owner: axon1
+    title: 'Destruir sesion mientras un callback baseline esta en vuelo = deadlock'
+    status: done
+    closedBy: 'axon1 2026-08-27 22:40 — merge de sib/watch-deadlock, verificado e2e (RUNNER_EXIT=0 + JSON)'
+    dependsOn: [bugs/napi-sigtrap]
+    evidence: 'gt/napi-teardown-reentry'
+    note: >-
+      Latente: el SIGTRAP mataba el proceso antes del teardown, asi que ninguna run
+      llegaba a un cierre limpio. Fix sin sleeps ni timeouts. Segundo hallazgo del
+      mismo diff: 6 lecturas de punteros a callback eran load planos desde hilos
+      watcher/platform — data race PRE-EXISTENTE, ahora @atomicLoad(.acquire).
+  - id: bugs/napi-scope-audit
+    track: bugs
+    repo: hyperdiff
+    owner: axon1
+    title: 'Auditar las ~1900 lineas restantes de addon.c'
+    status: in_progress
+    dependsOn: [bugs/napi-sigtrap]
+    dod: >-
+      Inventario de cada funcion nativa que crea valores JS (cuantos puede crear /
+      tiene scope / salidas multiples / veredicto), fixes de los bucles que acumulan
+      sin scope, y flag sin arreglar de lo dudoso. NO un refactor de addon.c.
+    note: >-
+      Se arreglo UN sitio. Un handle scope que falta no da test rojo: da exit 133 a
+      las 5000 iteraciones, en un paquete publicado que mission-control consume.
+      Lane sib/napi-audit viva desde 2026-08-27 22:50 (glm, /zig-cinterop).
   - id: bugs/ci-canary
     track: bugs
     repo: hyperdiff
@@ -871,7 +924,13 @@ nodes:
     repo: hyperdiff
     owner: axon1
     title: 'Dockerfile del bench → fallback al mirror del VPS'
-    status: pending
+    status: done
+    closedBy: 'axon1 2026-08-27 21:30 — merge 76818f2 (lane docker-mirror, verificada)'
+    closeNote: >-
+      Resuelto por contexto de build sobre SSH, NO por URL HTTP. La lane comprobo el
+      VPS real con ss -tlnp: no existe endpoint sirviendo /root/zig-mirror/. Una URL
+      habria sido un especimen inventado y desde fuera del tailnet colgaria en
+      connect-timeout. ZIG_VERSION intacto.
     note: >-
       El mirror ya existe (vps:/root/zig-mirror/, 4 targets, 213M) pero los 3
       fallbacks de curl del Dockerfile van todos a ziglang.org, que purga
