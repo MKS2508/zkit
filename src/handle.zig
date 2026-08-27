@@ -7,10 +7,13 @@
 //!
 //! ## Design
 //!
-//!   Handle layout: `(generation: u16) << 48 | (slot: u48)`
+//!   Handle layout: `(generation: u16) << 48 | (slot index, low 48 bits)`
 //!
 //!   - 16-bit generation → 65535 reuses before wrap (ABA window)
-//!   - 48-bit slot → 281 trillion slots (effectively unlimited)
+//!   - the slot field is 48 bits wide, but the API is `u32` end to end
+//!     (`capacity`, `init`, `encodeHandle`, `decodeSlot`), so the real
+//!     ceiling is 2^32 slots. The spare 16 bits are headroom, not capacity —
+//!     a slot index above 2^32 cannot be constructed.
 //!
 //! `0` is never a live handle, so consumers may use it as a NULL sentinel
 //! (styx does: `BufferHandle.NULL`). `alloc()` skips generation 0 to make
