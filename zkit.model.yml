@@ -187,6 +187,31 @@ groundTruth:
       antes de llamar, o sea refactor de prefetchDiffs en otro repo.
     corrects: 'una afirmación previa de axon1 a waxin, que se quedó en la mitad barata del problema.'
 
+  - id: gt/double-pipeline
+    date: '2026-08-27'
+    origin: 'axon1, leyendo el call-site de MC y las dos rutas Zig'
+    fact: >-
+      El pipeline de diff se ejecuta DOS VECES POR FICHERO en producción hoy.
+      mission-control (diff.ts:94-104) llama a diffToMetadata y diffPatch sobre
+      los MISMOS dos buffers vía Promise.all; al otro lado
+      `hyperdiff_metadata_packed` → generateMetadata (metadata.zig:76) y
+      `hyperdiff_patch` → generatePatchFromTexts (patch.zig:392) hacen cada uno
+      buildLineIndex ×2 + hashFromIndex ×2 + dispatch de diff.
+      El seam para arreglarlo YA existe: `patch.zig:63` generatePatch acepta
+      `edits: []const Edit` y no calcula nada — la frontera FFI eligió el
+      wrapper que sí calcula.
+    consequence: >-
+      La ganancia mayor NO es batchear: es dejar de duplicar. Existe con N=1 y
+      no depende de que mission-control cambie una línea.
+
+  - id: gt/no-git-objects-in-zig
+    date: '2026-08-27'
+    fact: >-
+      `hyperdiff/core/zig/src/git/` contiene sólo attributes.zig e ignore.zig,
+      con CERO `export fn`. hyperdiff NO lee objetos git y no debe empezar: las
+      lecturas de blob por libgit2 son de mission-control. Descarta de raíz
+      cualquier diseño que mueva esa frontera a Zig.
+
   - id: gt/parallel-allocator-race
     date: '2026-08-27'
     origin: 'agente batch-export, leyendo parallel.zig:71-83'
@@ -445,15 +470,19 @@ nodes:
   - id: bugs/batch-real-target
     track: bugs
     repo: hyperdiff
-    owner: null
-    title: 'DECISIÓN: motor batch de metadata/patch, que es el que MC necesita de verdad'
-    status: needs_decision
-    evidence: 'gt/batch-wrong-target'
+    owner: axon1
+    title: 'hyperdiff_analyze — un diff por fichero, N ficheros por llamada'
+    status: designed
+    design: 'hyperdiff/docs/hyperdiff-analyze-design.md'
+    evidence: 'gt/batch-wrong-target, gt/double-pipeline'
+    lock: >-
+      waxin 2026-08-27: "lo mas elegante, da igual el coste y como este wireado
+      ahora en mission control". Diseño elegido por axon1 bajo esa delegación.
     note: >-
-      El export diseñado es correcto y reutilizable, pero como respuesta a
-      "acelerar el prefetch serial de mission-control" es necesario y NO
-      suficiente. Lo que falta es motor nuevo (batch de generateMetadata y de
-      generatePatchFromTexts) + refactor de prefetchDiffs en el repo de MC.
+      Supersede al export de compute-batch, que queda diseñado en el SSOT pero
+      SIN implementar: no tiene consumidor. La ganancia principal de analyze
+      (dejar de correr el pipeline dos veces) existe ya con N=1, así que no
+      depende de que mission-control cambie nada.
 
   - id: bugs/parallel-error-codes
     track: bugs
