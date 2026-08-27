@@ -10,115 +10,147 @@
 //!     PERMISSION_DENIED,
 //! };
 //!
-//! pub const Space = ErrorSpace(MyErrors, &[_]Entry{
-//!     .{ .tag = "FILE_NOT_FOUND", .code = 1000, .message = "File not found" },
-//!     .{ .tag = "PERMISSION_DENIED", .code = 1001, .message = "Permission denied" },
+//! pub const Space = ErrorSpace(MyErrors, &.{
+//!     .{ .name = "io", .base = 1000, .entries = &.{
+//!         .{ .tag = "FILE_NOT_FOUND",   .message = "File not found" },
+//!         .{ .tag = "PERMISSION_DENIED", .message = "Permission denied" },
+//!     }},
 //! });
 //! ```
 //!
-//! Exposes: `Space.Code` (u16), `Space.Error` (the error set type),
-//! `Space.codeOf(err)`, `Space.errorOf(code)`, `Space.messageOf(code)`,
-//! `Space.emitTypeScript()`.
+//! Exposes: `Space.Error`, `Space.Code`, `Space.codeOf(err)`, `Space.errorOf(code)`,
+//! `Space.messageOf(code)`, `Space.emitTypeScript()`.
 
 const std = @import("std");
 
 // ── Config types ───────────────────────────────────────────────────────────────
 
 pub const Entry = struct {
-    /// Must exactly match an error variant name in the error set.
+    /// Must exactly match an error variant name in `E`.
     tag: []const u8,
-    /// Numeric code. Must be unique across all entries.
-    code: u16,
+    /// Human-readable message.
     message: []const u8,
+};
+
+pub const Domain = struct {
+    /// Domain name, used as prefix in generated TypeScript.
+    name: []const u8,
+    /// Base numeric code. First entry gets `base`, second `base + 1`, etc.
+    base: u16,
+    /// Entries in declaration order — ordinal position determines code offset.
+    entries: []const Entry,
 };
 
 // ── Core ─────────────────────────────────────────────────────────────────────
 
-/// Create an error space.
+/// Create an error space from an error set and domain descriptors.
 ///
-/// - `E`: the error set type. Must contain one variant for every entry tag.
-/// - `entries`: flat slice of `Entry`. Each entry's `tag` must match a variant
-///   in `E` and each `code` must be unique.
+/// The error set type `E` is explicit — no `@Type(.enum_literal)` (removed in
+/// 0.16.0).  Adding an entry whose `tag` has no matching variant in `E`
+/// produces a compile error in `codeOf` (exhaustive switch over `E`).  Adding a
+/// variant in `E` without an entry hits `unreachable` in `errorOf`.
 ///
-/// Adding an entry without a matching error variant produces a compile error
-/// in `codeOf` (exhaustive switch). Adding an error variant without an entry
-/// produces a compile error in `errorOf` (unreachable branch).
-///
-/// Range validity (non-overlapping codes) is NOT enforced at compile time by
-/// this API — callers must ensure uniqueness of codes manually.
-pub fn ErrorSpace(comptime E: type, comptime entries: []const Entry) type {
-    const n = entries.len;
-
+/// Code uniqueness across domains is the caller's responsibility.
+pub fn ErrorSpace(comptime E: type, comptime domains: []const Domain) type {
     return struct {
         pub const Error = E;
         pub const Code = u16;
 
-        // ── codeOf ────────────────────────────────────────────────────────────
-        // Exhaustive switch: compiler verifies every entry has a matching error variant.
-
+        // ── codeOf ──────────────────────────────────────────────────────────
+        /// Exhaustive switch: every error variant in E must appear in a domain entry,
+        /// or this fails to compile.
         pub fn codeOf(err: Error) Code {
-            inline for (entries) |entry| {
-                if (@field(E, entry.tag) == err) {
-                    return entry.code;
+            inline for (domains) |domain| {
+                inline for (domain.entries, 0..) |entry, ordinal| {
+                    if (@field(E, entry.tag) == err) {
+                        return domain.base + @as(Code, @intCast(ordinal));
+                    }
                 }
             }
-            unreachable;
+            unreachable; // variant with no entry
         }
 
-        // ── errorOf ─────────────────────────────────────────────────────────
-        // Adding an error variant without an entry hits unreachable.
+        // ── errorOf ────────────────────────────────────────────────────────
 
+        /// Inverse of `codeOf`.  Returns `null` for unknown codes.
         pub fn errorOf(code: Code) ?Error {
-            inline for (entries) |entry| {
-                if (entry.code == code) {
-                    return @field(E, entry.tag);
+            inline for (domains) |domain| {
+                inline for (domain.entries, 0..) |entry, ordinal| {
+                    if (domain.base + @as(Code, @intCast(ordinal)) == code) {
+                        return @field(E, entry.tag);
+                    }
                 }
             }
             return null;
         }
 
-        // ── messageOf ────────────────────────────────────────────────────────
+        // ── messageOf ─────────────────────────────────────────────────────
 
         pub fn messageOf(code: Code) ?[]const u8 {
-            inline for (entries) |entry| {
-                if (entry.code == code) return entry.message;
+            inline for (domains) |domain| {
+                inline for (domain.entries, 0..) |entry, ordinal| {
+                    if (domain.base + @as(Code, @intCast(ordinal)) == code) {
+                        return entry.message;
+                    }
+                }
             }
             return null;
         }
 
-        // ── emitTypeScript ──────────────────────────────────────────────────
+        // ── emitTypeScript ─────────────────────────────────────────────────
 
-        /// Emit the TypeScript data module.
+        /// Emit the TypeScript data module as a comptime-known string.
+        /// Emits in a single pass over domains → entries; no intermediate array.
         pub fn emitTypeScript() []const u8 {
             comptime var out: []const u8 = &.{};
 
-            // Union type
+            // Union type: count entries first, then emit with pipe on all but the last.
+            comptime var total: usize = 0;
+            inline for (domains) |domain| {
+                inline for (domain.entries) |_| {
+                    total += 1;
+                }
+            }
+            comptime var emitted: usize = 0;
             out = out ++ "export type ErrorCode =\n";
-            inline for (entries, 0..) |entry, i| {
-                const sep = if (i < n - 1) "  | " else "  ";
-                out = out ++ sep ++ "\"" ++ entry.tag ++ "\"\n";
+            inline for (domains) |domain| {
+                inline for (domain.entries) |entry| {
+                    emitted += 1;
+                    const prefix = if (emitted < total) "  | \"" else "  \"";
+                    out = out ++ prefix ++ entry.tag ++ "\"\n";
+                }
             }
             out = out ++ ";\n\n";
 
             // CODE_TO_NAME
             out = out ++ "export const CODE_TO_NAME: Record<number, ErrorCode> = {\n";
-            inline for (entries) |entry| {
-                out = out ++ std.fmt.comptimePrint("  {d}: \"{s}\",\n", .{
-                    entry.code,
-                    entry.tag,
-                });
+            inline for (domains) |domain| {
+                inline for (domain.entries, 0..) |entry, ordinal| {
+                    const code = domain.base + @as(Code, @intCast(ordinal));
+                    out = out ++ std.fmt.comptimePrint("  {d}: \"{s}\",\n", .{ code, entry.tag });
+                }
             }
             out = out ++ "};\n\n";
 
             // CODE_TO_MESSAGE
             out = out ++ "export const CODE_TO_MESSAGE: Record<number, string> = {\n";
-            inline for (entries) |entry| {
-                out = out ++ std.fmt.comptimePrint("  {d}: \"{s}\",\n", .{
-                    entry.code,
-                    entry.message,
-                });
+            inline for (domains) |domain| {
+                inline for (domain.entries, 0..) |entry, ordinal| {
+                    const code = domain.base + @as(Code, @intCast(ordinal));
+                    out = out ++ std.fmt.comptimePrint("  {d}: \"{s}\",\n", .{ code, entry.message });
+                }
             }
             out = out ++ "};\n\n";
+
+            // DOMAIN_OF
+            out = out ++ "export const DOMAIN_OF: Record<number, string> = {\n";
+            inline for (domains) |domain| {
+                inline for (domain.entries, 0..) |_, ordinal| {
+                    const code = domain.base + @as(Code, @intCast(ordinal));
+                    out = out ++ std.fmt.comptimePrint("  {d}: \"{s}\",\n", .{ code, domain.name });
+                }
+            }
+            out = out ++ "};\n";
 
             return out;
         }
