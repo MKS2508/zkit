@@ -565,6 +565,59 @@ groundTruth:
       `release_fast`: esa grafía no ha existido nunca.
     addedToSkill: 'zig-0.17-migration fila 21 + nota in situ en el snippet (dotfiles 872aff0)'
 
+  - id: gt/addstepdependencies-es-noop
+    date: '2026-08-28'
+    verifiedBy: 'axon1, primary source + secuencia empirica sin rm -rf .zig-cache'
+    fact: >-
+      `LazyPath.addStepDependencies` NO registra el fichero en la caché. Su
+      cuerpo entero es un switch que ignora las rutas de fuente
+      (`Build.zig:2360`: `.src_path, .cwd_relative, .relative, .dependency =>
+      {}`) y sólo encadena pasos para `.generated`. Sobre un `b.path(...)` es
+      literalmente un no-op. La API para "este run depende de este fichero" es
+      `Run.addFileInput` (`Step/Run.zig:799`), que va colgada del step de **run**
+      —el que abre el fichero— y no del de compile, y que internamente ya llama
+      a addStepDependencies. El nombre es la trampa: el que suena a lo que
+      quieres es el que no hace nada.
+    consequence: >-
+      Un gate que lee su oráculo en runtime queda `run test cached` para siempre
+      tras el primer verde: corrompes el oráculo, incluso lo borras del disco, y
+      sigue verde. En CI sobre checkout limpio corre; en local, que es donde
+      alguien edita el oráculo, no. Tres rondas de la lane wire-hyperdiff.
+
+  - id: gt/rm-rf-cache-no-prueba-tracking
+    date: '2026-08-28'
+    verifiedBy: 'axon1, al reproducir la demostracion del sibling'
+    fact: >-
+      Una prueba de invalidación de caché que empieza por `rm -rf .zig-cache` no
+      prueba nada: fuerza la re-ejecución exista o no la dependencia declarada.
+      La secuencia que sí prueba es sin borrar nunca — verde, `cached`, cambiar
+      el fichero externo con cero fuentes tocadas, **rojo**, restaurar,
+      `cached` otra vez. El último paso es el que separa tracking real de un
+      step que corre siempre.
+    consequence: >-
+      Tercera variante de prueba vacua de la misma lane: r1 tabla transcrita
+      dentro del test (Zig-vs-Zig), r2 el mismo verde afirmado como "no hubo
+      trampa", r3 la caché nukeada antes de cada medición. El patrón no es
+      mentir: es medir con el instrumento que garantiza el resultado que se
+      espera. Corolario operativo — cuando un report demuestre algo, mirar
+      primero **cómo lo midió**, antes que qué salió.
+
+  - id: gt/gate-ciego-a-las-altas
+    date: '2026-08-28'
+    verifiedBy: 'axon1, BOGUS_INVENTADO: 1099 añadido solo a errors.ts'
+    fact: >-
+      Un gate que recorre una lista literal de claves comprueba lo que la lista
+      nombra y nada más. Sin una aserción de conteo contra el oráculo es
+      unidireccional: caza modificaciones y bajas, y es **ciego a las altas**.
+      Verificado en hyperdiff: un código dado de alta sólo en `errors.ts` pasaba
+      en verde. Cerrado asertando que el oráculo contiene exactamente esos
+      códigos (`expected 49, found 50`).
+    consequence: >-
+      Vale para cualquier gate de paridad entre dos declaraciones. La pregunta
+      de review no es "¿comprueba las entradas?" sino "¿comprueba que no hay
+      más?". Y si el gate tiene una tercera transcripción a mano de lo que
+      compara, esa lista es la que hay que derivar.
+
 # ── NODOS DEL PROGRAMA ──────────────────────────────────────────────────────
 nodes:
   # ── Track green: dejar los repos compilando contra 1884 ──────────────────
@@ -954,9 +1007,17 @@ nodes:
     repo: hyperdiff
     owner: axon1
     title: 'drainSince pierde el burst entero en el retry (session.zig:851)'
-    status: pending
+    status: done
     foundBy: 'lane napi-audit 2026-08-27 — hallazgo honesto FUERA de su footprint, flaggeado sin arreglar'
     evidence: '/tmp/drain-retry-repro.ts (repro empirico de la lane)'
+    closedAt: '2026-08-28, hyperdiff eb97b27 (merge --no-ff de sib/drain-fix, fix en 2d0e770)'
+    closedBy: >-
+      peek-then-commit: `peek()` no destruye el ring, `total_needed` se calcula antes
+      de consumir, y sólo se avanza el cursor cuando el buffer del consumidor da.
+      Verificado por axon1 con el repro de la propia lane: MODE=big pasa de
+      `changes=0 overflow=false` (pérdida silenciosa, indistinguible de "no pasó
+      nada") a `changes=40 HEALTHY`. Un solo fix en el core cubre los tres paquetes
+      publicados (napi/ffi-bun/ffi-deno exponían el mismo bucle con el mismo cap).
     note: >-
       El fix correcto es en Zig (peek-then-commit), no en el adaptador — por eso la
       lane no lo toco: su glob era core/packages/napi/** y paro en el borde en vez de
@@ -1048,9 +1109,9 @@ nodes:
   - id: trans/wire-hyperdiff
     track: trans
     repo: zkit
-    owner: null
+    owner: axon1
     title: 'Wirear zkit en hyperdiff (arista .zon) — con parity gate'
-    status: pending
+    status: partial
     unblockedBy: 'lock/standalone amendment 2026-08-27 23:00 — levantado solo para hyperdiff'
     dependsOn: [zkit/green, zkit/errors-mechanism]
     dod: >-
@@ -1059,7 +1120,25 @@ nodes:
       Zig y un test falla si divergen. Hoy son 5 tablas a mano con una promesa de
       1:1 que nada comprueba (gt/errors-hand-synced). El mecanismo que lo hace
       posible ya está mergeado en zkit; lo que falta es la arista.
-    blockedBy: 'lock/standalone mientras la pasada de convergencia siga viva (mismo gate que trans/wire-styx)'
+    closedAt: '2026-08-28, hyperdiff master 6c4862a (merge --no-ff de sib/wire-hyperdiff)'
+    doneHalf: >-
+      La MITAD DEL GUARD. La arista `.zon` existe, `ErrorSpace` declara los 49
+      códigos en 7 dominios, y `zig build gate-errors` compara código, mensaje y
+      nombre de tag contra `errors.ts` leído en runtime, en las dos direcciones.
+      Falsificado por axon1 sin borrar la caché: corromper el oráculo con cero
+      ficheros Zig tocados pone el gate en rojo; restaurarlo vuelve a `cached`.
+      Alta sólo en el TS también en rojo (`expected 49, found 50`).
+      Split limpio: la librería importa `errors_core.zig` (sin zkit), así que
+      zkit es dependencia del gate y NO del binario publicado.
+    pendingHalf: >-
+      La MITAD DE GENERACIÓN, que es la que da nombre al DoD. `errors.ts` se
+      sigue escribiendo a mano: `emitTypeScript()` existe en zkit pero no está
+      cableado como escritor, y el gate compara valores, no texto generado.
+      Mientras no se cierre, `gt/errors-hand-synced` sigue siendo cierto — con
+      la diferencia de que ahora la divergencia es imposible de no ver en local.
+      Deuda menor asociada: el gate lleva una lista literal de los 49 códigos
+      dentro del test (tercera transcripción); derivarla de ErrorSpace la mata.
+    blockedBy: null
     note: >-
       El parity gate (lock/bindings-parity) es el MÉTODO de este nodo, no su motivo de
       aplazamiento: los bindings @mks2508/hyperdiff-* se wirean CON gate de paridad para que
