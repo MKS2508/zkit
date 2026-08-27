@@ -183,6 +183,22 @@ locks:
         done). styx no puede porque el suyo no ha aterrizado. La asimetria es de
         CAPACIDAD, no de criterio — avisar a axon2 para que no la lea como excepcion
         arbitraria.
+    amendment2:
+      date: '2026-08-28 02:2x'
+      quote: 'waxin, AskUserQuestion (4 opciones con previews): «wire-styx ya, BR1 después»'
+      decision: >-
+        LEVANTADO TAMBIEN PARA STYX. La asimetria de capacidad se cerro: styx compila bajo
+        0.17.0-dev.1884 desde 32369c8 en master (verificado por axon2 con merge-base, no
+        sobre un report), que era exactamente la condicion que nombraba la enmienda 1. Los
+        dos consumidores vuelven a ser simetricos y lock/standalone queda AGOTADO: ya no
+        prohibe ninguna arista.
+      trade: >-
+        waxin eligio arquitectura sobre fiabilidad con el coste delante: el preview decia
+        literalmente que BR1 se queda `partial` — el fix de R-02 probado en memoria y
+        falsificado a mano, pero sin prueba de que los bytes correctos salen POR EL CABLE, y
+        R-02 es el unico de R-01..R-13 que corrompe bytes. Decision informada, no descuido.
+        BR1 va inmediatamente despues.
+      escribio: axon2
 
   - id: lock/matriz-al-final
     date: '2026-08-27 23:00'
@@ -1152,24 +1168,24 @@ nodes:
     repo: styx
     owner: axon2
     title: 'Wirear zkit en styx (arista .zon) — habilita la promoción de Candidate H'
-    status: blocked
+    status: in_progress
     dependsOn: [zkit/green]
-    blockedBy: 'go de waxin en la reconciliación — el blocker TÉCNICO ya cayó (ver blockerHistory)'
+    unblockedBy: 'waxin, AskUserQuestion 2026-08-28 02:2x: «wire-styx ya, BR1 después» — arquitectura primero. Esa respuesta ES el levantado de lock/standalone para styx, por el mismo mecanismo que la enmienda de hyperdiff (2026-08-27 23:00).'
     blockerHistory:
       - blocker: 'merge de la rama styx `chore/zig-017-convergence` a master'
         resolved: '2026-08-28'
         evidence: 'styx 32369c8 — `git merge-base --is-ancestor 32369c8 master` → ancestor. Verificado por axon2 (dueño del nodo) sobre el repo styx, no sobre un report.'
+      - blocker: 'lock/standalone: CERO aristas .zon en esta pasada (levantado sólo para hyperdiff)'
+        resolved: '2026-08-28'
+        evidence: 'AskUserQuestion de waxin con previews, 4 opciones (BR1-primero / wire-styx-ya / paralelo / CI). Eligió wire-styx-ya sabiendo explícitamente que deja BR1 en partial — la pregunta lo decía en el preview.'
     note: >-
       OJO al secuenciar: `dependsOn: [zkit/green]` NO gatea nada — zkit/green ya está `done`
       (a3ed91f). El gate técnico era que la convergencia de styx a 0.17.0-dev.1884 aterrizara
       en master, y ESO YA ESTÁ (32369c8, ver blockerHistory). Lo que queda NO es técnico: es
       que lock/standalone ("CERO aristas .zon EN ESTA PASADA") se levantó por enmienda
-      2026-08-27 23:00 SÓLO PARA HYPERDIFF, y esa enmienda nombra explícitamente la condición
-      de styx («sigue esperando al merge de chore/zig-017-convergence»). La condición está
-      satisfecha, pero la enmienda la firma waxin vía AskUserQuestion, no axon2 — el levantado
-      para styx se hace igual que el de hyperdiff: waxin elige la lane, su respuesta ES el
-      lift, y se cita aquí en `unblockedBy`. axon2 NO se auto-autoriza la arista.
-      lock/standalone sigue sin enmendarse por esta vía.
+      2026-08-27 23:00 SÓLO PARA HYPERDIFF. Esa segunda mitad **ya se resolvió**: waxin la
+      levantó para styx en la reconciliación del 2026-08-28 (ver `unblockedBy` y la enmienda 2
+      de `lock/standalone`). Los dos consumidores vuelven a ser simétricos.
       RESTRICCIÓN DE EJECUCIÓN cuando se despache: el pin `.zon` debe apuntar a un commit de
       zkit PUBLICADO (hoy `b93f626`; hay 1 commit local sin pushear por delante) — un pin a un
       commit que sólo existe en el disco de waxin no es una dependencia, es un symlink con
@@ -1178,7 +1194,8 @@ nodes:
       y las primitivas que necesita (SubscriberQueue, ReorderBuffer, HungWorkerWatchdog,
       HandleSlab) se rescataron AQUÍ. Reimplementarlas en styx sería des-ejecutar la condición
       #5 de r44. Lockeado en styx `docs/decisions/dec-0103-byte-runtime-consume-zkit.md`.
-      No es fleet lane hoy: trabajo bloqueado no es lane.
+      LANE ACTIVA desde 2026-08-28: worktree de styx, owner axon2, ejecuta sibling. El ticket
+      y el DoD viven en styx (`docs/track/byte-runtime/`), no aquí — este fichero es estado.
 
   - id: trans/styx-log-convention
     track: trans
