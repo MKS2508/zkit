@@ -694,13 +694,33 @@ nodes:
     repo: zkit
     owner: axon1
     title: 'Espacio de códigos genérico + emisor de TS'
-    status: pending
+    status: done
+    closedBy: 'axon1 2026-08-27 22:45 — merge de sib/zkit-errors + guard escrito por axon1'
     dependsOn: [zkit/scaffold]
     dod: >-
-      hyperdiff/core/packages/utils/src/errors.ts se GENERA desde la
-      declaración Zig, y un test falla si divergen. Hoy son 5 tablas a mano
-      con una promesa de 1:1 que nada comprueba (gt/errors-hand-synced).
-    note: 'Diseño de axon1 (es la pieza no mecánica); la implementación puede delegarse.'
+      MECANISMO: ErrorSpace(E, domains) con códigos derivados `base + ordinal`,
+      unicidad POR CONSTRUCCIÓN (dos dominios con rangos solapados no compilan),
+      emisor de TypeScript, y `root.zig` re-exportando `errors`.
+    dodSplit:
+      date: '2026-08-27'
+      quote: 'waxin, AskUserQuestion: partir el DoD'
+      rationale: >-
+        El DoD original era «errors.ts se GENERA desde la declaración Zig y un test
+        falla si divergen». Eso es WIRING, y lock/standalone lo prohíbe en esta
+        pasada — el nodo no podía cerrarse por diseño, no por falta de trabajo. La
+        mitad de generación+guard se movió a trans/wire-hyperdiff, que es donde el
+        wiring vive. Cero locks tocados.
+    verification: >-
+      axon1: zig build exit 0, zig build test exit 0, y el guard DEMOSTRADO —
+      `zig build-exe` con .net en base 1001 solapando a .io falla con
+      "ErrorSpace: domains 'io' and 'net' have overlapping code ranges".
+    scar: >-
+      Tres rondas de sibling. r1 entregó diseño plano perdiendo la unicidad; r2
+      declaró «domain nesting is not achievable in 0.17-dev.1884», que es FALSO
+      (gt/comptime-anytype-anida); r3 recuperó los dominios pero dejó escrito en
+      space.zig:53 que la unicidad era «the caller's responsibility». El guard lo
+      escribió axon1 — tres rondas sobre 15 líneas ya compiladas es la señal de
+      dejar de delegar, no de lanzar una cuarta.
 
   - id: zkit/log
     track: zkit
@@ -733,7 +753,18 @@ nodes:
     repo: hyperdiff
     owner: axon1
     title: 'Matriz v4 completa (intento 6)'
-    status: in_progress
+    status: blocked
+    blockedBy: >-
+      Lanes vivas sobre el código que la matriz mide (lock de waxin, AskUserQuestion
+      2026-08-27): napi-audit edita core/packages/napi/**, que es el adaptador que usa
+      el stack hyperdiff-sdk-pull-full; zig-analyze r3 edita el pipeline. Medir 45 min
+      contra un target móvil produce ruido, no baseline. Una sola corrida limpia
+      cuando aterricen las dos.
+    unblocked: >-
+      Sus CUATRO blockers originales están cerrados (2026-08-27): fail-fast del runner
+      (97f2c4d), SIGTRAP de handle scopes (a161d0d), deadlock de teardown (merge de
+      watch-deadlock) y catch-swallow (49be97c). La matriz es LANZABLE — sólo espera
+      turno, no arreglos.
     note: >-
       Bloquea TODO lo que compile. 9 stacks × S2/S3/S4 × n500/n5000, sustained,
       soak 15 min. La celda git-cli-diff@n5000 sale harness-invalid por
@@ -780,7 +811,13 @@ nodes:
     repo: hyperdiff
     owner: axon1
     title: 'Export C-ABI hyperdiff_batch_diff_packed() + bindings'
-    status: designed
+    status: deferred
+    deferredBy: 'axon1 2026-08-27 — su propia nota ya lo declaraba superseded'
+    deferNote: >-
+      Superseded por bugs/batch-real-target y SIN consumidor. El diseño se conserva
+      completo aquí por si aparece uno; implementarlo hoy es superficie FFI nueva que
+      nadie llama, en un paquete publicado. No es una decisión pendiente de waxin:
+      el propio nodo decía «queda diseñado en el SSOT pero SIN implementar».
     dependsOn: [bugs/matrix-v4]
     design: >-
       Completo (agente batch-export): `CBatchPair` 40B extern + `BatchPackedHeader`
@@ -950,7 +987,13 @@ nodes:
     owner: null
     title: 'Wirear zkit en hyperdiff (arista .zon) — con parity gate'
     status: blocked
-    dependsOn: [zkit/green]
+    dependsOn: [zkit/green, zkit/errors-mechanism]
+    dod: >-
+      HEREDADO de zkit/errors-mechanism (split 2026-08-27, lock de waxin):
+      `hyperdiff/core/packages/utils/src/errors.ts` se GENERA desde la declaración
+      Zig y un test falla si divergen. Hoy son 5 tablas a mano con una promesa de
+      1:1 que nada comprueba (gt/errors-hand-synced). El mecanismo que lo hace
+      posible ya está mergeado en zkit; lo que falta es la arista.
     blockedBy: 'lock/standalone mientras la pasada de convergencia siga viva (mismo gate que trans/wire-styx)'
     note: >-
       El parity gate (lock/bindings-parity) es el MÉTODO de este nodo, no su motivo de
