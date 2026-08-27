@@ -5,7 +5,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     // ── Zig Module (for `zig fetch` / `@import("zkit")`) ──────────
-    const mod = b.addModule("zkit", .{
+    _ = b.addModule("zkit", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
