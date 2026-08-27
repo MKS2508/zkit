@@ -349,6 +349,26 @@ groundTruth:
       std en vez de reinventarlo con un prefijo de texto?". No hay churn que hacer
       en styx hoy — `trans/styx-log-convention` se mató por esto.
 
+  - id: gt/zkit-primitives-single-threaded
+    date: '2026-08-27'
+    verifiedBy: 'axon2, grep directo sobre zkit/src/ tras el merge de zkit/green'
+    fact: >-
+      Las primitivas rescatadas NO son thread-safe y no lo esconden: `src/handle.zig` tiene
+      CERO atomics y documenta literal (líneas 27-30) "Not thread-safe. Callers must
+      synchronize externally if shared between threads (typical FFI pattern: single-threaded
+      consumer)". `src/subscriber_queue.zig`: 0 hits de atomic/Atomic. El rescate preservó
+      con fidelidad el contrato single-threaded del harness de `spikes/candidate-h` — como
+      rescate es CORRECTO, no es un bug del rescate.
+    consequence: >-
+      Pero r44 (ADR de styx) condiciona la promoción de Candidate H a que el HandlePool de
+      producción use atomics (#2) y a que pump/fanout/allowance estén sincronizados para
+      multi-thread (#9) — el delivery plane de styx es multi-thread, y sobre el patrón del
+      spike se encontraron 4 races con TSAN. Conclusión cross-repo: ese trabajo NO es de
+      styx, es de zkit (owner del primitivo). Una variante "styx-atómica" en native/zig/
+      sería un fork del código que acabamos de extraer. axon1: esto es candidato a nodo
+      propio en el track zkit, no lo he creado yo — es tu carril. Lockeado del lado de styx
+      en `docs/decisions/dec-0103-byte-runtime-consume-zkit.md` §2.
+
   - id: gt/typeinfo-arrays-paralelos
     date: '2026-08-27'
     verifiedBy: 'axon1, probe compilado contra 0.17.0-dev.1884'
@@ -739,14 +759,49 @@ nodes:
       fallbacks de curl del Dockerfile van todos a ziglang.org, que purga
       /builds/ al avanzar master.
 
-  - id: trans/wire-consumers
+  # PARTIDO 2026-08-27 por axon2 (era `trans/wire-consumers`): el nodo unificado ocultaba que
+  # sus dos mitades tienen requisitos DISTINTOS. axon1: objeta si el corte está mal.
+  #
+  # CORRECCIÓN DE WAXIN, mismo día, sobre mi primer borrador de este split: yo escribí que
+  # hyperdiff estaba diferido PORQUE mission-control lo consume en producción. Waxin: "da
+  # igual que mc esté en prod, no lo rompes en prod". Es la regla de la cola y el perro —
+  # "está en producción" NO es un argumento para diferir, es una TAREA: el parity gate existe
+  # exactamente para no romperlo. Un requisito de ejecución no es un blocker de planificación.
+  - id: trans/wire-hyperdiff
     track: trans
     repo: zkit
     owner: null
-    title: 'Wirear zkit en hyperdiff y styx (aristas .zon)'
-    status: deferred
+    title: 'Wirear zkit en hyperdiff (arista .zon) — con parity gate'
+    status: blocked
     dependsOn: [zkit/green]
-    note: 'DIFERIDO POR lock/standalone. Requiere parity gate — los paquetes @mks2508/hyperdiff-* están en producción.'
+    blockedBy: 'lock/standalone mientras la pasada de convergencia siga viva (mismo gate que trans/wire-styx)'
+    note: >-
+      El parity gate (lock/bindings-parity) es el MÉTODO de este nodo, no su motivo de
+      aplazamiento: los bindings @mks2508/hyperdiff-* se wirean CON gate de paridad para que
+      mission-control no se entere. Requisito de ejecución, no blocker.
+      Blocker real, y es el mismo que el de styx: lock/standalone durante esta pasada.
+      Diferencia con trans/wire-styx: styx NO necesita parity gate (es el origen del rescate,
+      cero consumidores publicados) — sólo el gate de la pasada.
+
+  - id: trans/wire-styx
+    track: trans
+    repo: styx
+    owner: axon2
+    title: 'Wirear zkit en styx (arista .zon) — habilita la promoción de Candidate H'
+    status: blocked
+    dependsOn: [zkit/green]
+    blockedBy: 'merge de la rama styx `chore/zig-017-convergence` a master (hoy sin mergear, en review de waxin)'
+    note: >-
+      OJO al secuenciar: `dependsOn: [zkit/green]` NO gatea nada — zkit/green ya está `done`
+      (a3ed91f). El gate real es que la convergencia de styx a 0.17.0-dev.1884 aterrice en
+      master; hasta entonces lock/standalone ("CERO aristas .zon EN ESTA PASADA") sigue vigente
+      y este nodo NO es accionable. lock/standalone no se enmienda — esta arista es posterior
+      a la pasada, no una excepción a ella.
+      PORQUÉ existe: styx `track/byte-runtime` (descongelado por dec-0102) promueve Candidate H,
+      y las primitivas que necesita (SubscriberQueue, ReorderBuffer, HungWorkerWatchdog,
+      HandleSlab) se rescataron AQUÍ. Reimplementarlas en styx sería des-ejecutar la condición
+      #5 de r44. Lockeado en styx `docs/decisions/dec-0103-byte-runtime-consume-zkit.md`.
+      No es fleet lane hoy: trabajo bloqueado no es lane.
 
   - id: trans/styx-log-convention
     track: trans
