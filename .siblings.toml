@@ -1,0 +1,12 @@
+# Lanes de siblings para zkit.
+#
+# Una sola lane por ahora: zkit-forge hace el scaffold Zig y el puerto de las
+# primitivas. Los repos de origen (styx, hyperdiff) se leen por path absoluto —
+# no hacen falta como worktree, son solo lectura.
+
+[lanes.zkit-forge]
+globs   = ["src/**", "build.zig", "build.zig.zon"]
+copy    = []
+install = false
+model   = "minimax"
+base    = "master"
