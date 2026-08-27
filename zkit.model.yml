@@ -115,9 +115,25 @@ fleet:
     nodes: [zkit/errors-mechanism]
     blockedBy: 'embargo de compilación hasta fin de matriz'
 
-# axon2 (styx) SIN lane hoy: trans/styx-log-convention se mató (ver nodes track trans +
-# gt/styx-logging-already-consistent) tras medirse que la premisa era falsa. elysia-svc-forge
-# y ui-forge tampoco entran — cero nodos de este SSOT asignados. No hay churn que no exista.
+  - lane: zig-forge
+    repo: styx
+    axon: axon2
+    model: normal
+    globs: ['native/zig/**']
+    nodes: []
+    note: >-
+      VIVA desde 2026-08-27 22:55. Trabajo: R-02 (FETCH cross-track sirve bytes de otro
+      track) — nodo de styx.model.yml `track/byte-runtime/m4`, NO de este SSOT; aparece
+      aquí sólo para que axon1 vea la capacidad ocupada. Base = rama styx
+      `chore/zig-017-convergence`, NO master (master no compila bajo 1884), así que R-02
+      aterriza DETRÁS de la convergencia — dependencia de merge declarada aquí y no
+      descubierta en el merge. Modelo `normal` (Anthropic) a propósito, no glm: es el
+      único de los 13 riesgos que corrompe bytes servidos, y mano de obra barata en un
+      bug de corrección es la economía equivocada. Report: /tmp/zig-forge-report.md.
+
+# elysia-svc-forge y ui-forge de axon2 siguen SIN entrar: cero nodos de este SSOT asignados.
+# trans/styx-log-convention se mató (ver nodes track trans + gt/styx-logging-already-consistent)
+# tras medirse que la premisa era falsa. No hay churn que no exista.
 
 # Vocabulario de `status`. La distinción que importa con flota:
 #   pending → in_progress → reported → done
