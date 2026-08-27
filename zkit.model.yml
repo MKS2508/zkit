@@ -832,7 +832,8 @@ nodes:
     repo: hyperdiff
     owner: axon1
     title: 'hyperdiff_analyze — un diff por fichero, N ficheros por llamada'
-    status: in_progress
+    status: done
+    closedBy: 'axon1 2026-08-27 22:50 — merge de sib/zig-analyze tras r3'
     design: 'hyperdiff/docs/hyperdiff-analyze-design.md'
     evidence: 'gt/batch-wrong-target, gt/double-pipeline'
     lock: >-
@@ -849,10 +850,8 @@ nodes:
     repo: hyperdiff
     owner: axon1
     title: 'parallel.zig:100-104 colapsa todos los errores a error_code=1'
-    status: reported
-    reportNote: >-
-      Arreglado en sib/zig-analyze (errors.errorToCode(err)), verificado por axon1,
-      pero NO mergeado: la rama va junto con bugs/batch-real-target, que volvio a r3.
+    status: done
+    closedBy: 'axon1 2026-08-27 22:50 — mergeado con sib/zig-analyze'
     evidence: 'gt/parallel-error-collapse'
     note: 'Fix de una línea. Companion necesario de cualquier export batch: sin él, el export nuevo es inconsistente con los 42 códigos del resto de la superficie FFI.'
 
@@ -889,7 +888,15 @@ nodes:
     repo: hyperdiff
     owner: axon1
     title: 'Auditar las ~1900 lineas restantes de addon.c'
-    status: in_progress
+    status: done
+    closedBy: 'axon1 2026-08-27 22:40 — 71/71 auditadas, CERO fixes necesarios, worktree limpio'
+    result: >-
+      No hay hermanos del SIGTRAP: el drain burst era el unico patron ilimitado del
+      fichero. Las 2 familias de trampolin (baseline x16, notify x16) limpias — notify
+      es fire-and-forget y no puede deadlockar por diseno. Y verifico CON FUENTE que
+      los dos hosts abren handle scope por dispatch de TSF (Node: v8::HandleScope en
+      node_api.cc CallJsFunction; Bun: NapiHandleScope::open_scoped en deliver).
+      Cero commits es el resultado CORRECTO aqui: el entregable era el inventario.
     dependsOn: [bugs/napi-sigtrap]
     dod: >-
       Inventario de cada funcion nativa que crea valores JS (cuantos puede crear /
@@ -899,6 +906,20 @@ nodes:
       Se arreglo UN sitio. Un handle scope que falta no da test rojo: da exit 133 a
       las 5000 iteraciones, en un paquete publicado que mission-control consume.
       Lane sib/napi-audit viva desde 2026-08-27 22:50 (glm, /zig-cinterop).
+  - id: bugs/drain-retry-burst-loss
+    track: bugs
+    repo: hyperdiff
+    owner: axon1
+    title: 'drainSince pierde el burst entero en el retry (session.zig:851)'
+    status: pending
+    foundBy: 'lane napi-audit 2026-08-27 — hallazgo honesto FUERA de su footprint, flaggeado sin arreglar'
+    evidence: '/tmp/drain-retry-repro.ts (repro empirico de la lane)'
+    note: >-
+      El fix correcto es en Zig (peek-then-commit), no en el adaptador — por eso la
+      lane no lo toco: su glob era core/packages/napi/** y paro en el borde en vez de
+      cruzarlo. Es la disciplina funcionando.
+      OJO al secuenciar: session.zig esta en core/zig/src/watch/**, que es codigo que
+      la matriz mide. Misma colision de turno que bugs/napi-scope-audit.
   - id: bugs/ci-canary
     track: bugs
     repo: hyperdiff
