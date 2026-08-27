@@ -114,6 +114,17 @@ fleet:
     globs: ['src/errors.zig', 'src/root.zig', 'docs/design/**']
     nodes: [zkit/errors-mechanism]
     blockedBy: 'embargo de compilación hasta fin de matriz'
+  - lane: zig-forge
+    repo: styx
+    axon: axon2
+    model: minimax
+    globs: ['native/zig/**']
+    nodes: [trans/styx-log-convention]
+    blockedBy: 'embargo de worktree/compilación hasta fin de matriz'
+    note: >-
+      elysia-svc-forge y ui-forge (definidas en .siblings.toml de styx) NO entran en esta
+      flota: cero nodos de este SSOT asignados hoy. No las copio solo porque estén
+      escritas — cuando tengan trabajo real de este programa, entran.
 
 # Vocabulario de `status`. La distinción que importa con flota:
 #   pending → in_progress → reported → done
@@ -683,6 +694,28 @@ nodes:
     status: deferred
     dependsOn: [zkit/green]
     note: 'DIFERIDO POR lock/standalone. Requiere parity gate — los paquetes @mks2508/hyperdiff-* están en producción.'
+
+  - id: trans/styx-log-convention
+    track: trans
+    repo: styx
+    owner: axon2
+    title: 'Converger std.log.scoped(.atom) a la convención de zkit/log (scoped(name)+prefijo), SIN arista .zon'
+    status: designed
+    dependsOn: []
+    dod: >-
+      0 `std.log.scoped(` directo en native/zig/** (fuera de docs/references/quic-zig y
+      zig-pkg/, ajenos); reemplazado por un `scoped(name: []const u8)` local que replica
+      el interfaz de zkit/log (prefijo `"[{s}] " ++ fmt` + 4 métodos debug/info/warn/err);
+      zig build test limpio en los 3 build roots tocados.
+    evidence: 'handoff: docs/handoffs/LAUNCH-zig-forge.md'
+    note: >-
+      Candidato de axon1. Verificado por mí antes de aceptarlo: 29 declaraciones
+      `std.log.scoped(.atom)` en 27 ficheros / 12 directorios reales bajo native/zig/**
+      — el conteo de directorios coincide con lo reportado (12), el de declaraciones no
+      (dijeron 44, salen 29 con `grep -c`; anotado, no reconciliado, se lo pido al sibling
+      al cerrar). Cumple lock/standalone: es CONVENCIÓN replicada en código propio de
+      styx, no dependencia — cero aristas .zon nuevas. Bloqueado por el embargo de
+      worktree hasta que muera la matriz; handoff ya escrito y listo para disparar al ping.
 
 # ── Evidencia: dónde vive el porqué (NO duplicar aquí) ──────────────────────
 evidence:
