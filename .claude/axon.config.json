@@ -1,0 +1,60 @@
+{
+  "project": "zkit",
+  "projectNameProvisional": false,
+  "projectRepoPhysical": "zkit",
+  "roadmapModel": "zkit.model.yml",
+  "roadmapAuthorityNote": "zkit.model.yml = AUTORIDAD del programa cross-repo (zkit + hyperdiff + styx + quic-zig + libxev). No hay ROADMAP.md generado todavía: el modelo se lee directo. hyperdiff/ROADMAP.md y styx/styx.model.yml siguen mandando cada uno sobre SU repo.",
+  "scope": "cross-repo",
+  "vibe": "castellano-casual",
+  "sessionDiary": false,
+  "twDualMode": false,
+  "autoCommit": false,
+  "lanes": {
+    "note": "Tres lanes ejecutan sobre el modelo. El campo `owner` de cada nodo dice cuál. Cada lane actualiza el status de SUS nodos; nadie reescribe los de otra — se pide por el canal COORD.",
+    "roster": [
+      {
+        "id": "axon1",
+        "session": "hyperdiff",
+        "model": "opus",
+        "owns": ["hyperdiff", "quic-zig", "libxev", "zkit"]
+      },
+      {
+        "id": "axon2",
+        "session": "styx-coord",
+        "model": "anthropic",
+        "owns": ["styx"],
+        "note": "axon-v2: nunca implementa código, despacha y verifica"
+      },
+      {
+        "id": "sibling",
+        "session": "siblings up (efímero)",
+        "model": "minimax",
+        "owns": ["zkit"],
+        "note": "trabajo mecánico: portar ficheros, scaffold, tests. Reporta y para."
+      }
+    ],
+    "channel": "~/dotfiles/COORD-zig-toolchain.md (append-only por sección, ping por tx)"
+  },
+  "toolchain": {
+    "zig": "0.17.0-dev.1884+841dd0eb8",
+    "note": "Heredado del lock de waxin 2026-08-27 ('todo va a la 017 dev alineado todo a la ultima'). hyperdiff es la referencia, no el desviado. minimum_zig_version NO se enforcea — el toolchain real lo fijan el PATH, el Dockerfile y el CI.",
+    "snapshot": "~/.local/zig-master/zig-aarch64-macos-0.17.0-dev.1884+841dd0eb8/",
+    "mirror": "vps:/root/zig-mirror/ (4 targets, 213M) — ziglang.org purga /builds/ al avanzar master"
+  },
+  "commitConvention": {
+    "format": "conventional",
+    "noCoAuthor": true,
+    "noAiAttribution": true
+  },
+  "skills": {
+    "globalLoaded": [
+      "zig-best-practices",
+      "zig-build-system",
+      "zig-cinterop",
+      "zig-compiler",
+      "zig-debugging",
+      "guidelines",
+      "sibling-dispatch"
+    ]
+  }
+}

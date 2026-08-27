@@ -1,0 +1,467 @@
+# ============================================================================
+# zkit.model.yml — SSOT COORDINADO del programa zkit + camino verde 0.17-dev
+#
+# AUTORIDAD ÚNICA del programa cross-repo (authoritative: true).
+# Cubre TRES repos a la vez porque el trabajo no se puede partir por repo sin
+# mentir: la cadena de pinneo libxev → quic-zig → styx cruza fronteras, y la
+# extracción a zkit toca hyperdiff y styx en la misma pasada (lock de waxin).
+#
+# Qué manda y qué NO:
+#   - Este fichero manda sobre el ESTADO y el ORDEN de los nodos del programa.
+#   - `hyperdiff/ROADMAP.md` y `styx/styx.model.yml` siguen mandando cada uno
+#     sobre SU repo. Aquí sólo viven los nodos del programa, con puntero.
+#   - La EVIDENCIA (por qué, qué se descartó, medidas) NO vive aquí: vive en
+#     los HANDOFF de ~/dotfiles. Este fichero es estado, no narrativa.
+#
+# Tres lanes ejecutan sobre él (`owner` de cada nodo):
+#   axon1   — sesión hyperdiff (Opus). Dueña de hyperdiff, quic-zig, libxev.
+#   axon2   — sesión styx-coord (Anthropic, axon-v2). Dueña de styx.
+#   sibling — worktree efímero con modelo barato (minimax). Trabajo mecánico.
+#   agent   — subagente in-process de axon1, análisis acotado.
+#
+# Regla de escritura: cada lane actualiza el `status` de SUS nodos. Nadie
+# reescribe nodos de otra lane — se pide por COORD-zig-toolchain.md.
+# ============================================================================
+authoritative: true
+model: zkit-program
+modelVersion: '1'
+project: zkit
+scope: cross-repo
+created: '2026-08-27'
+
+repos:
+  - id: zkit
+    path: '/Volumes/KODAK1TB/REPOS y PROYECTOS/zig-and-node-bun-related/zkit'
+    remote: 'MKS2508/zkit (privado)'
+    ssot: 'zkit.model.yml (este fichero)'
+    role: 'destino de la extracción; nace standalone, sin consumidores wireados'
+  - id: hyperdiff
+    path: '/Volumes/KODAK1TB/REPOS y PROYECTOS/zig-and-node-bun-related/hyperdiff'
+    remote: 'MKS2508/hyperdiff'
+    ssot: 'ROADMAP.md'
+    role: 'referencia de toolchain (ya en el destino 0.17-dev.1884) y origen de handle/errors/log'
+  - id: styx
+    path: '/Volumes/KODAK1TB/REPOS y PROYECTOS/styx'
+    remote: 'MKS2508/styx'
+    ssot: 'styx.model.yml (deferred d12)'
+    role: 'origen del rescate (spikes/candidate-h) y mayor superficie rota'
+  - id: quic-zig
+    path: '/Volumes/KODAK1TB/REPOS y PROYECTOS/mks2508-quic-zig'
+    remote: 'MKS2508/quic-zig'
+    ssot: null
+    role: 'eslabón de la cadena de pinneo; submodule de styx en docs/references/quic-zig'
+  - id: libxev
+    path: '/Volumes/KODAK1TB/REPOS y PROYECTOS/libxev'
+    remote: 'MKS2508/libxev (fork)'
+    ssot: null
+    role: 'raíz de la cadena de pinneo'
+
+lanes:
+  - id: axon1
+    session: hyperdiff
+    model: opus
+    owns: [hyperdiff, quic-zig, libxev, zkit]
+  - id: axon2
+    session: styx-coord
+    model: anthropic
+    owns: [styx]
+    note: 'axon-v2: NUNCA implementa código, despacha y verifica'
+  - id: sibling
+    session: 'siblings up (efímero)'
+    model: minimax
+    owns: [zkit]
+    note: 'trabajo mecánico: portar ficheros, scaffold, tests. Reporta y para.'
+  - id: agent
+    session: 'subagente de axon1'
+    model: sonnet
+    owns: []
+    note: 'análisis acotado read-only; no commitea'
+
+# ── LOCKS de waxin. No re-abrir sin evidencia nueva. ────────────────────────
+locks:
+  - id: lock/version
+    date: '2026-08-27'
+    quote: 'todo va a la 017 dev alineado todo a la ultima'
+    decision: >-
+      Convergencia en 0.17.0-dev master, todos los proyectos a la última.
+      Hoy = 0.17.0-dev.1884+841dd0eb8. hyperdiff YA está en el destino.
+      Converger en 0.16.0 queda DESCARTADO.
+  - id: lock/zkit-exists
+    date: '2026-08-27'
+    decision: 'zkit es un repo nuevo dedicado (precedente: axon-core). No un directorio dentro de otro repo.'
+  - id: lock/extract-while-migrating
+    date: '2026-08-27'
+    decision: >-
+      La extracción se hace en la misma pasada que la migración (acople de
+      TRABAJO, no de dependencias).
+  - id: lock/standalone
+    date: '2026-08-27'
+    decision: >-
+      zkit nace standalone: CERO aristas `.zon` desde styx o hyperdiff en esta
+      pasada. Compone con lock/extract-while-migrating — el camino verde NO
+      depende de que zkit exista.
+  - id: lock/bindings-parity
+    date: '2026-08-27'
+    decision: >-
+      Los bindings de hyperdiff (ffi-bun/napi/ffi-deno) se extraen con PARITY
+      GATE obligatorio. Los paquetes @mks2508/hyperdiff-* están publicados y
+      mission-control los consume en producción.
+  - id: lock/zkit-v0-mechanism
+    date: '2026-08-27'
+    origin: 'waxin delegó ("lo mas elegante robusto y mejor"); elección de axon1, declarada'
+    decision: >-
+      zkit v0 aporta el MECANISMO de la taxonomía de errores (espacio de
+      códigos genérico + mapeo error-set↔código + emisión a TS), NO una copia
+      de los 42 códigos de hyperdiff. Los códigos concretos siguen en
+      hyperdiff hasta el wiring con parity gate. Motivo: los 42 códigos SON la
+      ABI de los paquetes publicados; dos copias divergirían.
+  - id: lock/watchdog-in
+    date: '2026-08-27'
+    decision: '`watchdog.zig` (candidate-h, 235 l, std-only) ENTRA en el rescate. Hallazgo de axon2.'
+  - id: lock/pages-noop
+    date: '2026-08-27'
+    decision: 'El workflow "Deploy Docs to Pages" de hyperdiff se queda en rojo. Deuda conocida, sin acción.'
+  - id: lock/canary-nightly
+    date: '2026-08-27'
+    decision: 'bench-gate.yml → pull_request + schedule 05:00 UTC + workflow_dispatch, más job zig-canary contra master.'
+
+# ── Hechos verificados que acotan el problema. No re-descubrir. ─────────────
+groundTruth:
+  - id: gt/min-version-not-enforced
+    fact: >-
+      `minimum_zig_version` NO se enforcea. Probado con el compiler 1884 contra
+      0.99.0, 0.17.0, 0.17.0-dev.9999 y 0.18.0-dev.1, como paquete raíz y como
+      dependencia por path: acepta las cuatro. Leer un `.zon` NO dice con qué
+      compiler algo compila.
+    notTested: 'dependencia fetched por URL+hash'
+  - id: gt/017-not-a-release
+    fact: >-
+      `0.17.0` no existe como release. ziglang.org publica 0.16.0, 0.15.2,
+      0.15.1, 0.14.1, 0.14.0, 0.13.0 y master. Los proyectos que declaran
+      "0.17.0" nombran una versión inexistente.
+  - id: gt/optimize-renamed
+    fact: >-
+      El enum Optimize se RENOMBRÓ, no se minusculizó. Tags reales
+      {debug,safe,fast,small} (std/lang.zig:118-124); las mayúsculas
+      sobreviven como decls DEPRECADAS (:127-133, "removed after 0.18.0").
+      Por eso `builtin.mode == .Debug` falla (== exige campo) y
+      `module.optimize = .ReleaseSafe` compila (asignación resuelve decl).
+      Fix correcto = `.debug/.safe/.fast/.small`, NUNCA `release_*`.
+      Un sed a ciegas rompe más de lo que arregla.
+  - id: gt/pss-verify-broken
+    fact: >-
+      `std.crypto.Certificate.rsa.PSSSignature.verify` es INCALLABLE en 1884:
+      declara `sig: [modulus_len]u8` por valor (:1030) y se lo pasa a
+      `concatVerify`, que exige `*const [modulus_len]u8` (:1040). El bug vive
+      DENTRO de std. Fix = llamar a concatVerify directamente. Ojo: hay un
+      segundo bloque verify/concatVerify en :1193 (PKCS1-v1.5) con firma de
+      puntero — confundirlos es el error que axon1 cometió en 1f11d13.
+  - id: gt/drift-inside-017
+    fact: >-
+      El drift NO fue 0.16→0.17: fue DENTRO del canal 0.17-dev, entre e1a034e
+      (5-jul, donde migró quic-zig) y el pin 1884 (25-ago). 7 semanas = 2
+      breaking changes de std. "Alineado a la última" es impuesto recurrente,
+      no coste único.
+  - id: gt/diffbatch-exists
+    fact: >-
+      `hyperdiff/core/zig/src/parallel.zig:41` YA implementa `diffBatch()` con
+      std.Thread.Pool, arena por fichero, sin estado compartido. Lo único que
+      falta es la superficie C-ABI. "diffBatch: available, not wired" del doc
+      compartido significa disponible en Zig, no en FFI.
+  - id: gt/errors-hand-synced
+    fact: >-
+      La ABI de errores se mantiene A MANO en 5 tablas paralelas entre dos
+      lenguajes: errors.zig (error sets + enum numérico + errorMessage) y
+      errors.ts (union de strings + HYPERDIFF_NUMERIC_CODES + ERROR_MESSAGES).
+      El doc-comment promete "1:1 with errors.zig" y NADA lo comprueba.
+      Es el DoD concreto de zkit/errors.
+  - id: gt/handle-verdict
+    fact: >-
+      `hyperdiff/handle_slab.zig` (242 l) es estrictamente mejor que
+      `candidate-h/handle.zig` (346 l): handle u64 opaco que ES la ABI, free
+      list fija sin alloc tras init, `get` honesto. El de candidate-h traga
+      el fallo de `ArrayListUnmanaged.append` con `catch {}` (fuga de slot en
+      OOM) y su `resolve_and_pin` no pinea nada. El módulo handle de zkit
+      sale de hyperdiff. NO portar el de candidate-h.
+  - id: gt/no-queue-duplication
+    fact: >-
+      Las colas NO están duplicadas: patch_ring (MPSC bytes, 601 l),
+      event_queue (SPSC fijo, 466 l) y subscriber_queue (acotada + política,
+      485 l) son 3 disciplinas de concurrencia distintas. Fusionarlas sería
+      flexibilidad especulativa. Lo que SÍ se repite son las convenciones
+      (taxonomía de errores + logging scoped), que existen sólo en hyperdiff.
+
+# ── NODOS DEL PROGRAMA ──────────────────────────────────────────────────────
+nodes:
+  # ── Track green: dejar los repos compilando contra 1884 ──────────────────
+  - id: green/libxev-zon
+    track: green
+    repo: libxev
+    owner: axon1
+    title: 'libxev .zon → snapshot real'
+    status: done
+    evidence: 'commit cedcbf7, pusheado. El código era 0.17-only desde 99e0031/2db65bf/7f067af; sólo mentía la etiqueta.'
+    dependsOn: []
+
+  - id: green/quic-zig-fixes
+    track: green
+    repo: quic-zig
+    owner: axon1
+    title: 'quic-zig: .Debug→.debug, concatVerify, bump libxev, .zon'
+    status: in_progress
+    evidence: 'rama unify/zig-0.17 — e001ae9 (merge feat/zig-0.17 + pr/disposal-on-ack), 1f11d13, c5580e5'
+    dependsOn: [green/libxev-zon]
+    blockedBy: 'sin compilar — la matriz de benchmarks ocupa la máquina'
+
+  - id: green/quic-zig-push
+    track: green
+    repo: quic-zig
+    owner: axon1
+    title: 'Verificar con zig build y pushear unify/zig-0.17'
+    status: blocked
+    dependsOn: [green/quic-zig-fixes, bugs/matrix-v4]
+    dod: 'zig build limpio contra 1884 + push + SHA comunicado a axon2 por COORD'
+    note: 'NO pushear antes de compilar: un gitlink a un SHA roto rompe cualquier clone fresco.'
+
+  - id: green/styx-debug-tag
+    track: green
+    repo: styx
+    owner: axon2
+    title: 'media-daemon/main.zig:319 .Debug → .debug'
+    status: pending
+    dependsOn: []
+    dod: 'zig build de styx-media-daemon limpio (es 1 de los 2 únicos errores del binario de producción)'
+    note: 'Independiente de la cadena de pinneo — código propio de styx.'
+
+  - id: green/styx-gitlink
+    track: green
+    repo: styx
+    owner: axon2
+    title: 'Mover gitlink del submodule docs/references/quic-zig'
+    status: blocked
+    dependsOn: [green/quic-zig-push]
+    note: 'axon2 tenía razón: mover el gitlink es el ÚLTIMO paso, no el segundo.'
+
+  - id: green/styx-libxev-caches
+    track: green
+    repo: styx
+    owner: axon2
+    title: 'Las 2 cachés zig-pkg/ tras el bump de libxev'
+    status: blocked
+    dependsOn: [green/styx-gitlink]
+    note: >-
+      native/zig/zig-pkg/libxev-… y docs/references/quic-zig/zig-pkg/libxev-…
+      son copias byte-a-byte (build-roots distintos). Aplican en este paso
+      porque el commit de quic-zig SÍ bumpea libxev.
+
+  - id: green/styx-zon-values
+    track: green
+    repo: styx
+    owner: axon2
+    title: '.zon de native/zig, candidate-h, media-core, media-core/sync → snapshot real'
+    status: pending
+    dependsOn: []
+
+  - id: green/hyperdiff-versions
+    track: green
+    repo: hyperdiff
+    owner: axon1
+    title: '5 sitios de versión desalineados'
+    status: done
+    evidence: 'commit f520e18. El gordo: el CI instalaba 0.15.2, con la que el repo no compila desde 0ab3718.'
+    dependsOn: []
+
+  # ── Track zkit ───────────────────────────────────────────────────────────
+  - id: zkit/dispatch-rewrite
+    track: zkit
+    repo: zkit
+    owner: axon1
+    title: 'B0 — reescribir el brief de ejecución con las premisas corregidas'
+    status: in_progress
+    dependsOn: []
+    corrections:
+      - 'el vendorizado NO es "checkout literal, path dependency" — es submodule en otra rama'
+      - 'las primitivas NO "compilan porque el .zon lo dice" — compilan porque el P2 de axon2 lo midió'
+      - 'el rescate NO es carrera contra un cleanup activo — es DoD latente de TKT-030'
+      - 'handle.zig NO se porta desde styx (gt/handle-verdict)'
+      - 'watchdog.zig SÍ entra (lock/watchdog-in)'
+      - 'hyperdiff_batch NO necesita thread pool nuevo (gt/diffbatch-exists)'
+
+  - id: zkit/scaffold
+    track: zkit
+    repo: zkit
+    owner: sibling
+    title: 'build.zig + build.zig.zon + src/root.zig + layout'
+    status: pending
+    dependsOn: [zkit/dispatch-rewrite]
+    dod: 'minimum_zig_version = 0.17.0-dev.1884+841dd0eb8'
+
+  - id: zkit/rescue
+    track: zkit
+    repo: zkit
+    owner: sibling
+    title: 'Portar 4 primitivas de styx + sus tests inline'
+    status: pending
+    dependsOn: [zkit/scaffold]
+    manifest:
+      - 'candidate-h/subscriber_queue.zig (485 l, std-only, 11 tests inline)'
+      - 'candidate-h/reorder_buffer.zig (825 l, std-only, 15 tests inline)'
+      - 'candidate-h/watchdog.zig (235 l, std-only, 6 tests inline + test_hung_worker_watchdog.zig 171 l, también std-only)'
+      - 'media-daemon/tracking_allocator.zig (98 l, std-only)'
+    excluded:
+      - 'handle.zig — superado por hyperdiff (gt/handle-verdict)'
+      - 'byte_domain.zig — importa handle.zig + ledger.zig, infraestructura del spike'
+      - 'test_h_d1.zig / test_h_f7.zig — importan delivery_pump / delivery_profile, arrastrarían arquitectura de Candidate H'
+    note: 'test_h_d2.zig (440 l) SÍ es portable verbatim: importa sólo reorder_buffer + std, y cubre el contrato duro de bound/stall.'
+
+  - id: zkit/handle
+    track: zkit
+    repo: zkit
+    owner: sibling
+    title: 'Promover handle_slab.zig desde hyperdiff'
+    status: pending
+    dependsOn: [zkit/scaffold]
+    dod: 'error.WatchQueueFull → error.PoolFull (nombre de dominio filtrado en un contenedor genérico)'
+
+  - id: zkit/errors-mechanism
+    track: zkit
+    repo: zkit
+    owner: axon1
+    title: 'Espacio de códigos genérico + emisor de TS'
+    status: pending
+    dependsOn: [zkit/scaffold]
+    dod: >-
+      hyperdiff/core/packages/utils/src/errors.ts se GENERA desde la
+      declaración Zig, y un test falla si divergen. Hoy son 5 tablas a mano
+      con una promesa de 1:1 que nada comprueba (gt/errors-hand-synced).
+    note: 'Diseño de axon1 (es la pieza no mecánica); la implementación puede delegarse.'
+
+  - id: zkit/log
+    track: zkit
+    repo: zkit
+    owner: sibling
+    title: 'Módulo de logging scoped'
+    status: pending
+    dependsOn: [zkit/scaffold]
+    note: 'Origen: hyperdiff/core/zig/src/log.zig (58 l). styx tiene 44 std.log.scoped sueltos en 12 directorios y ningún módulo central.'
+
+  - id: zkit/green
+    track: zkit
+    repo: zkit
+    owner: sibling
+    title: 'zig build test verde en zkit'
+    status: blocked
+    dependsOn: [zkit/rescue, zkit/handle, zkit/errors-mechanism, zkit/log, bugs/matrix-v4]
+
+  # ── Track bugs (hyperdiff) ───────────────────────────────────────────────
+  - id: bugs/matrix-v4
+    track: bugs
+    repo: hyperdiff
+    owner: axon1
+    title: 'Matriz v4 completa (intento 6)'
+    status: in_progress
+    note: >-
+      Bloquea TODO lo que compile. 9 stacks × S2/S3/S4 × n500/n5000, sustained,
+      soak 15 min. La celda git-cli-diff@n5000 sale harness-invalid por
+      bugs/second-instance — se marca, no se reporta como victoria.
+
+  - id: bugs/second-instance
+    track: bugs
+    repo: hyperdiff
+    owner: agent
+    title: 'La 2ª instancia de git-cli-diff en el mismo runner queda muerta'
+    status: in_progress
+    evidence: >-
+      n500 sano (changeEvents=9016 spawns=6355 harnessErrors=0, S2 26.57ms) →
+      n5000 todo a cero (S3 throughput 0.0%, S2/S4 timeout). libgit2-chokidar
+      hace la misma transición sin problema (15.61→15.49ms), así que NO es
+      genérico de 2ª instancia. La diferencia: git-cli-diff spawnea un proceso
+      por cambio. Reclasificado — NO era del mix `dual`.
+
+  - id: bugs/catch-swallow
+    track: bugs
+    repo: hyperdiff
+    owner: axon1
+    title: 'catch {} que se traga errores de harness en 3 stacks'
+    status: blocked
+    dependsOn: [bugs/matrix-v4]
+    sites: 'es-git-chokidar.ts:83,109,129 · gix-imara.ts:126,149,237 · libgit2-chokidar.ts:90,115,135'
+    note: 'Mismo patrón corregido en git-cli-diff.ts (a3824d7). Afecta la honestidad de G1-G7: un competidor que no arranca se mide como lento. Va ANTES de evaluar gates.'
+
+  - id: bugs/hyperdiff-batch
+    track: bugs
+    repo: hyperdiff
+    owner: agent
+    title: 'Export C-ABI hyperdiff_batch() + bindings'
+    status: in_progress
+    dependsOn: [bugs/matrix-v4]
+    note: 'Diseño en curso. NO hay que escribir motor: diffBatch ya existe (gt/diffbatch-exists). Consumidor: mission-control prefetchDiffs (serial, concurrency=2, máx 30).'
+
+  - id: bugs/ci-canary
+    track: bugs
+    repo: hyperdiff
+    owner: axon1
+    title: 'bench-gate: schedule nocturno + job zig-canary'
+    status: done
+    evidence: 'commit 3e2e463. El gate no se había ejecutado NUNCA (sólo pull_request, y el flujo real es push a master).'
+
+  # ── Track retire ─────────────────────────────────────────────────────────
+  - id: retire/candidate-h
+    track: retire
+    repo: styx
+    owner: axon2
+    title: 'Borrar spikes/candidate-h'
+    status: blocked
+    dependsOn: [zkit/green]
+    dod: 'rama nueva (NO sobre master, que tiene cambios sin relación sin commitear), git rm -r, commit conventional, SIN push'
+    note: >-
+      ~20.2k líneas. axon2 revisó las cabeceras de todos los no-test: todo
+      lleva "Candidate H" e invariantes C-numeradas ya promovidas al ADR d10.
+      El único ítem fuera de ese patrón era watchdog.zig, ya rescatado.
+
+  - id: retire/tkt-030-dod
+    track: retire
+    repo: styx
+    owner: axon2
+    title: 'Cerrar el DoD latente de TKT-030 en el SSOT de styx'
+    status: blocked
+    dependsOn: [retire/candidate-h]
+    note: 'TKT-030 está `done` y su Pass exige "el spike eliminado del árbol". No hace falta reabrirlo: nota de evidencia apuntando al commit de borrado + a zkit como destino.'
+
+  # ── Track transversal ────────────────────────────────────────────────────
+  - id: trans/mirror-dockerfile
+    track: trans
+    repo: hyperdiff
+    owner: axon1
+    title: 'Dockerfile del bench → fallback al mirror del VPS'
+    status: pending
+    note: >-
+      El mirror ya existe (vps:/root/zig-mirror/, 4 targets, 213M) pero los 3
+      fallbacks de curl del Dockerfile van todos a ziglang.org, que purga
+      /builds/ al avanzar master.
+
+  - id: trans/wire-consumers
+    track: trans
+    repo: zkit
+    owner: null
+    title: 'Wirear zkit en hyperdiff y styx (aristas .zon)'
+    status: deferred
+    dependsOn: [zkit/green]
+    note: 'DIFERIDO POR lock/standalone. Requiere parity gate — los paquetes @mks2508/hyperdiff-* están en producción.'
+
+# ── Evidencia: dónde vive el porqué (NO duplicar aquí) ──────────────────────
+evidence:
+  - path: '~/dotfiles/HANDOFF-zig-toolchain-inception.md'
+    what: 'research del toolchain, evidencia y lo descartado'
+  - path: '~/dotfiles/HANDOFF-zig-toolchain-plan.md'
+    what: 'plan por tracks, ledger verde, barrido de repetición cross-repo'
+  - path: '~/dotfiles/HANDOFF-zkit-inception.md'
+    what: 'research de zkit: inventario, candidatos falsificados, ecosistema Zig externo'
+  - path: '~/dotfiles/COORD-zig-toolchain.md'
+    what: 'canal axon1 ↔ axon2, append-only por sección'
+  - path: '/tmp/styx-zkit-coord-proposal.md'
+    what: 'propuesta de axon2: ledger verde de styx, manifiesto de rescate, secuencia de borrado, ejecutores'
+  - path: 'hyperdiff/ROADMAP.md §Deuda'
+    what: 'ledger verde de hyperdiff (V1-V7, B1-B7) y los locks L1-L4'
+  - path: 'styx/styx.model.yml → deferred d12'
+    what: 'registro de la deuda en el SSOT de styx'
