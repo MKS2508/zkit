@@ -272,18 +272,20 @@ nodes:
     repo: quic-zig
     owner: axon1
     title: 'quic-zig: .Debug→.debug, concatVerify, bump libxev, .zon'
-    status: in_progress
-    evidence: 'rama unify/zig-0.17 — e001ae9 (merge feat/zig-0.17 + pr/disposal-on-ack), 1f11d13, c5580e5'
+    status: done
+    evidence: 'rama unify/zig-0.17 — e001ae9, 1f11d13, c5580e5, 4803acd, e33c8b4'
     dependsOn: [green/libxev-zon]
-    blockedBy: 'sin compilar — la matriz de benchmarks ocupa la máquina'
 
   - id: green/quic-zig-push
     track: green
     repo: quic-zig
     owner: axon1
     title: 'Verificar con zig build y pushear unify/zig-0.17'
-    status: blocked
-    dependsOn: [green/quic-zig-fixes, bugs/matrix-v4]
+    status: done
+    dependsOn: [green/quic-zig-fixes]
+    evidence: >-
+      zig build LIMPIO y zig build test LIMPIO contra 1884. Pusheado como
+      e33c8b4144296200c937b8effd01fc3bb5a9de50; SHA comunicado a axon2.
     dod: 'zig build limpio contra 1884 + push + SHA comunicado a axon2 por COORD'
     note: 'NO pushear antes de compilar: un gitlink a un SHA roto rompe cualquier clone fresco.'
 
@@ -356,7 +358,7 @@ nodes:
     repo: zkit
     owner: sibling
     title: 'build.zig + build.zig.zon + src/root.zig + layout'
-    status: pending
+    status: done
     dependsOn: [zkit/dispatch-rewrite]
     dod: 'minimum_zig_version = 0.17.0-dev.1884+841dd0eb8'
 
@@ -365,7 +367,7 @@ nodes:
     repo: zkit
     owner: sibling
     title: 'Portar 4 primitivas de styx + sus tests inline'
-    status: pending
+    status: done
     dependsOn: [zkit/scaffold]
     manifest:
       - 'candidate-h/subscriber_queue.zig (485 l, std-only, 11 tests inline)'
@@ -383,7 +385,7 @@ nodes:
     repo: zkit
     owner: sibling
     title: 'Promover handle_slab.zig desde hyperdiff'
-    status: pending
+    status: done
     dependsOn: [zkit/scaffold]
     dod: 'error.WatchQueueFull → error.PoolFull (nombre de dominio filtrado en un contenedor genérico)'
 
@@ -405,17 +407,25 @@ nodes:
     repo: zkit
     owner: sibling
     title: 'Módulo de logging scoped'
-    status: pending
+    status: done
     dependsOn: [zkit/scaffold]
     note: 'Origen: hyperdiff/core/zig/src/log.zig (58 l). styx tiene 44 std.log.scoped sueltos en 12 directorios y ningún módulo central.'
 
   - id: zkit/green
     track: zkit
     repo: zkit
-    owner: sibling
+    owner: axon1
     title: 'zig build test verde en zkit'
-    status: blocked
-    dependsOn: [zkit/rescue, zkit/handle, zkit/errors-mechanism, zkit/log, bugs/matrix-v4]
+    status: done
+    dependsOn: [zkit/rescue, zkit/handle, zkit/log]
+    evidence: >-
+      17/17 steps, 8 binarios de test ejecutados contra 1884. Mergeado a
+      master en a3ed91f. Verificación previa al merge: 54 tests contados 1:1
+      contra los originales, cero fuga de idioma, WatchQueueFull erradicado.
+    note: >-
+      NO depende de zkit/errors-mechanism: ese módulo es diseño aparte y no
+      bloquea el verde de las primitivas rescatadas. DESBLOQUEA
+      retire/candidate-h.
 
   # ── Track bugs (hyperdiff) ───────────────────────────────────────────────
   - id: bugs/matrix-v4
