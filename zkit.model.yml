@@ -168,6 +168,45 @@ groundTruth:
       std.Thread.Pool, arena por fichero, sin estado compartido. Lo único que
       falta es la superficie C-ABI. "diffBatch: available, not wired" del doc
       compartido significa disponible en Zig, no en FFI.
+    caveat: 'PERO batchea la función equivocada para el consumidor real — ver gt/batch-wrong-target.'
+
+  - id: gt/batch-wrong-target
+    date: '2026-08-27'
+    origin: 'agente batch-export (read-only), verificado leyendo el call-site real'
+    fact: >-
+      `parallel.diffBatch` batchea COMPUTE CRUDO (Edit[]), pero el hot path de
+      mission-control NUNCA llama a `hyperdiff_compute`: `ffiDiff`/`ffiDiffRefs`
+      (diff.ts:92-107,219-239) llaman a `diffToMetadata()` → `hyperdiff_metadata_packed`
+      y `diffPatch()` → `hyperdiff_patch`. Además `prefetchDiffs`
+      (git.handler.ts:329-354) NO tiene los buffers old/new en mano: cada
+      `ffiDiff` hace sus PROPIAS lecturas de blob por libgit2, una por fichero.
+    consequence: >-
+      Envolver `parallel.diffBatch` en FFI NO desbloquea a mission-control.
+      Haría falta (a) motor batch para metadata y para patch — que NO existe, y
+      contradice el "no hay que escribir motor" — y (b) que MC junte los N pares
+      antes de llamar, o sea refactor de prefetchDiffs en otro repo.
+    corrects: 'una afirmación previa de axon1 a waxin, que se quedó en la mitad barata del problema.'
+
+  - id: gt/parallel-allocator-race
+    date: '2026-08-27'
+    origin: 'agente batch-export, leyendo parallel.zig:71-83'
+    fact: >-
+      `diffBatch` pasa el MISMO allocator a todos los `std.Thread.spawn`
+      concurrentes. Usar un ArenaAllocator ahí con thread_count>1 es una race
+      de escritura sobre el bump-pointer → corrupción de heap. El allocator
+      externo debe ser `gpa`/`page_allocator` (thread-safe), y el cleanup el
+      loop `deinit` + `free(results)` que el propio doc-comment muestra.
+    trap: 'Copiar el patrón "arena para simplificar cleanup" de otras partes de exports.zig se lo come sin avisar.'
+
+  - id: gt/parallel-error-collapse
+    date: '2026-08-27'
+    origin: 'agente batch-export, leyendo parallel.zig:100-104'
+    fact: >-
+      El catch de `diffOneInner` colapsa CUALQUIER error a `.error_code = 1`
+      genérico, en vez de `errors.errorToCode(err)` como hace todo el resto de
+      la superficie FFI (42 códigos reales, 1001-8102). `1` no es un ErrorCode
+      válido, así que un consumidor TS que haga `createHyperdiffError(1)`
+      rompe la convención. Fix de una línea, pendiente.
   - id: gt/errors-hand-synced
     fact: >-
       La ABI de errores se mantiene A MANO en 5 tablas paralelas entre dos
@@ -391,11 +430,39 @@ nodes:
   - id: bugs/hyperdiff-batch
     track: bugs
     repo: hyperdiff
-    owner: agent
-    title: 'Export C-ABI hyperdiff_batch() + bindings'
-    status: in_progress
+    owner: axon1
+    title: 'Export C-ABI hyperdiff_batch_diff_packed() + bindings'
+    status: designed
     dependsOn: [bugs/matrix-v4]
-    note: 'Diseño en curso. NO hay que escribir motor: diffBatch ya existe (gt/diffbatch-exists). Consumidor: mission-control prefetchDiffs (serial, concurrency=2, máx 30).'
+    design: >-
+      Completo (agente batch-export): `CBatchPair` 40B extern + `BatchPackedHeader`
+      24B + `BatchResultChunk` 20B, un solo export `_packed` con el mismo
+      retry-loop que compute_packed/metadata_packed. Sin cuarta familia de
+      convención. ABI version NO se bumpea (aditivo puro, no toca el layout de
+      CEdit/DiffResult) — forward-compat vía `version: u32 = 1` local.
+    blockedOn: 'decisión de waxin — ver bugs/batch-real-target'
+
+  - id: bugs/batch-real-target
+    track: bugs
+    repo: hyperdiff
+    owner: null
+    title: 'DECISIÓN: motor batch de metadata/patch, que es el que MC necesita de verdad'
+    status: needs_decision
+    evidence: 'gt/batch-wrong-target'
+    note: >-
+      El export diseñado es correcto y reutilizable, pero como respuesta a
+      "acelerar el prefetch serial de mission-control" es necesario y NO
+      suficiente. Lo que falta es motor nuevo (batch de generateMetadata y de
+      generatePatchFromTexts) + refactor de prefetchDiffs en el repo de MC.
+
+  - id: bugs/parallel-error-codes
+    track: bugs
+    repo: hyperdiff
+    owner: axon1
+    title: 'parallel.zig:100-104 colapsa todos los errores a error_code=1'
+    status: pending
+    evidence: 'gt/parallel-error-collapse'
+    note: 'Fix de una línea. Companion necesario de cualquier export batch: sin él, el export nuevo es inconsistente con los 42 códigos del resto de la superficie FFI.'
 
   - id: bugs/ci-canary
     track: bugs
