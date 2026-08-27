@@ -1,12 +1,14 @@
 # Lanes de siblings para zkit.
 #
-# Una sola lane por ahora: zkit-forge hace el scaffold Zig y el puerto de las
-# primitivas. Los repos de origen (styx, hyperdiff) se leen por path absoluto —
-# no hacen falta como worktree, son solo lectura.
+# `zkit-forge` cerrada y mergeada (a3ed91f): scaffold + rescate de las 4 primitivas,
+# verificado contra 1884 (17/17 steps, 8 binarios de test).
 
-[lanes.zkit-forge]
-globs   = ["src/**", "build.zig", "build.zig.zon"]
+[lanes.zkit-errors]
+globs   = ["src/errors.zig", "src/root.zig", "docs/design/**"]
 copy    = []
 install = false
 model   = "minimax"
 base    = "master"
+# El MECANISMO de la taxonomía (lock/zkit-v0-mechanism): ErrorSpace comptime +
+# emisión a TS + guard contra el .ts en disco. NO los 42 códigos de hyperdiff.
+# Diseño ya escrito en docs/design/errors.md — se implementa, no se re-diseña.

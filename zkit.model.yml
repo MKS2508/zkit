@@ -13,14 +13,23 @@
 #   - La EVIDENCIA (por qué, qué se descartó, medidas) NO vive aquí: vive en
 #     los HANDOFF de ~/dotfiles. Este fichero es estado, no narrativa.
 #
-# Tres lanes ejecutan sobre él (`owner` de cada nodo):
-#   axon1   — sesión hyperdiff (Opus). Dueña de hyperdiff, quic-zig, libxev.
-#   axon2   — sesión styx-coord (Anthropic, axon-v2). Dueña de styx.
-#   sibling — worktree efímero con modelo barato (minimax). Trabajo mecánico.
-#   agent   — subagente in-process de axon1, análisis acotado.
+# Tres NIVELES ejecutan sobre él, y sólo los dos primeros escriben aquí:
+#   axon1   — sesión hyperdiff (Opus). Dueña de hyperdiff, quic-zig, libxev, zkit.
+#   axon2   — sesión styx-coord (axon-v2). Dueña de styx.
+#   agent   — subagente in-process de un axon; análisis acotado, no commitea.
+#   flota   — N siblings por axon (sección `fleet`), worktree propio, modelo
+#             barato. NO escriben este fichero: escriben su report, y el axon
+#             dueño verifica y transcribe. Es la frontera de confianza.
 #
-# Regla de escritura: cada lane actualiza el `status` de SUS nodos. Nadie
-# reescribe nodos de otra lane — se pide por COORD-zig-toolchain.md.
+# Regla de escritura (con 2 axones sobre UN solo working tree — no hay clones
+# separados, `git pull` no te salva de nada aquí):
+#   1. Cada lane toca el `status` de SUS nodos. Nadie reescribe los de otra.
+#   2. Edits quirúrgicos, NUNCA reescribir el fichero entero: dos ediciones
+#      que no se solapan conviven; un overwrite se come el trabajo del otro.
+#   3. Commit inmediato tras editar. Un edit sin commit es invisible para el
+#      otro axon y para `git log`.
+#   4. Firma en el body del commit qué lane escribe — los dos axones commitean
+#      con la misma identidad de git y el log NO los distingue.
 # ============================================================================
 authoritative: true
 model: zkit-program
@@ -66,16 +75,56 @@ lanes:
     model: anthropic
     owns: [styx]
     note: 'axon-v2: NUNCA implementa código, despacha y verifica'
-  - id: sibling
-    session: 'siblings up (efímero)'
-    model: minimax
-    owns: [zkit]
-    note: 'trabajo mecánico: portar ficheros, scaffold, tests. Reporta y para.'
   - id: agent
     session: 'subagente de axon1'
     model: sonnet
     owns: []
     note: 'análisis acotado read-only; no commitea'
+
+# ── FLOTA de siblings. Cada uno es una sesión Claude real en su worktree. ───
+# Un sibling NUNCA escribe este fichero: escribe su report, el axon dueño lo
+# verifica y transcribe. Esa es la frontera de confianza de los 3 modelos.
+# `globs` DEBE coincidir con el `.siblings.toml` del repo y ser DISJUNTO entre
+# lanes del mismo repo — dos siblings sobre el mismo fichero es corrupción.
+fleet:
+  - lane: bench-harness
+    repo: hyperdiff
+    axon: axon1
+    model: glm
+    globs: ['core/bench/sdk-comparison/**']
+    nodes: [bugs/catch-swallow]
+    blockedBy: 'matriz v4 en vuelo — editar los stacks invalida la run'
+  - lane: zig-analyze
+    repo: hyperdiff
+    axon: axon1
+    model: minimax
+    globs: ['core/zig/src/**']
+    nodes: [bugs/hyperdiff-batch, bugs/parallel-error-codes]
+    blockedBy: 'embargo de compilación hasta fin de matriz'
+  - lane: docker-mirror
+    repo: hyperdiff
+    axon: axon1
+    model: glm
+    globs: ['core/bench/docker/**']
+    nodes: [trans/mirror-dockerfile]
+  - lane: zkit-errors
+    repo: zkit
+    axon: axon1
+    model: minimax
+    globs: ['src/errors.zig', 'src/root.zig', 'docs/design/**']
+    nodes: [zkit/errors-mechanism]
+    blockedBy: 'embargo de compilación hasta fin de matriz'
+
+# Vocabulario de `status`. La distinción que importa con flota:
+#   pending → in_progress → reported → done
+#                              ▲          ▲
+#            el SIBLING dice que acabó ───┘          │
+#            el AXON lo verificó de forma independiente ┘
+# `done` NO se pone con el report del sibling en la mano. Ese es el gotcha
+# entero del skill sibling-dispatch: el report es una hipótesis.
+# Otros: blocked (dep sin cerrar), designed (diseño hecho, sin implementar),
+# deferred (fuera de esta pasada).
+statusVocabulary: [pending, in_progress, reported, done, blocked, designed, deferred]
 
 # ── LOCKS de waxin. No re-abrir sin evidencia nueva. ────────────────────────
 locks:
@@ -123,8 +172,18 @@ locks:
     origin: 'waxin preguntó si los executors llevaban las skills de Zig; la respuesta era no'
     decision: >-
       Todo handoff a un executor o sibling que vaya a ESCRIBIR Zig empieza
-      invocando `/zig-best-practices` (y las hermanas `zig-*` que apliquen).
-      Aplica a las dos lanes, axon1 y axon2.
+      invocando `/zig-best-practices` **y `/zig-0.17-migration`** (más
+      `/zig-build-system` si toca `build.zig`). Aplica a axon1 y axon2.
+    scar: >-
+      `/zig-0.17-migration` existe hace tiempo, son 279 líneas, y es
+      literalmente este programa — y NO la había abierto nadie. Su fila 1 trae
+      el borrado de `**` con el commit exacto (72d954e7d3, 2026-04-29,
+      post-0.16.0); yo lo re-deriví a mano con `git blame` sobre quic-zig. Su
+      §1 trae la tabla `@splat` con el aviso de que `"ab" ** 3` NO tiene
+      equivalente plano — la trampa exacta que me comí. Y su fila 16 avisa de
+      que los wrappers `std.posix.kqueue/kevent` desaparecieron en 0.16.0
+      (comprobado: hyperdiff ya usa `std.c.*`, no había mina, pero eso lo supe
+      DESPUÉS de mirar). Coste de no abrirla: horas de re-derivación.
     rationale: >-
       El handoff de zkit-forge llevaba sólo un puntero en prosa a la skill más
       una tabla de trampas de 0.17 copiada a mano. La tabla es una segunda
