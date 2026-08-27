@@ -41,6 +41,33 @@ pub const Domain = struct {
     entries: []const Entry,
 };
 
+// ── Comptime guard ───────────────────────────────────────────────────────────
+
+/// Reject overlapping domain ranges at compile time.
+///
+/// A domain owns `[base, base + entries.len)`. Two domains whose ranges
+/// intersect would make `codeOf` and `errorOf` disagree — `errorOf` returns the
+/// first match in declaration order, so the shadowed variant becomes
+/// unreachable through the code path while `codeOf` still emits its number.
+/// These codes are the ABI of published packages: a collision is not a red
+/// test, it is a consumer reading the wrong error.
+fn assertDisjoint(comptime domains: []const Domain) void {
+    comptime {
+        for (domains, 0..) |a, ia| {
+            const a_end = a.base + a.entries.len;
+            for (domains[ia + 1 ..]) |b| {
+                const b_end = b.base + b.entries.len;
+                if (a.base < b_end and b.base < a_end) {
+                    @compileError(
+                        "ErrorSpace: domains '" ++ a.name ++ "' and '" ++ b.name ++
+                            "' have overlapping code ranges",
+                    );
+                }
+            }
+        }
+    }
+}
+
 // ── Core ─────────────────────────────────────────────────────────────────────
 
 /// Create an error space from an error set and domain descriptors.
@@ -50,8 +77,9 @@ pub const Domain = struct {
 /// produces a compile error in `codeOf` (exhaustive switch over `E`).  Adding a
 /// variant in `E` without an entry hits `unreachable` in `errorOf`.
 ///
-/// Code uniqueness across domains is the caller's responsibility.
+/// Code uniqueness across domains is enforced at comptime — see `assertDisjoint`.
 pub fn ErrorSpace(comptime E: type, comptime domains: []const Domain) type {
+    comptime assertDisjoint(domains);
     return struct {
         pub const Error = E;
         pub const Code = u16;
