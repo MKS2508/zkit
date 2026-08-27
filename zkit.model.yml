@@ -349,6 +349,42 @@ groundTruth:
       std en vez de reinventarlo con un prefijo de texto?". No hay churn que hacer
       en styx hoy — `trans/styx-log-convention` se mató por esto.
 
+  - id: gt/typeinfo-arrays-paralelos
+    date: '2026-08-27'
+    verifiedBy: 'axon1, probe compilado contra 0.17.0-dev.1884'
+    fact: >-
+      `@typeInfo(T).@"struct".fields` NO existe en 1884. El slice
+      `fields: []const StructField` se partió en arrays paralelos:
+      `field_names: []const [:0]const u8`, `field_types: []const type`,
+      `field_attrs: []const FieldAttributes`, correlacionados por índice y con
+      longitud igual garantizada por std (`lang.zig:744-772`). Acertar el tag en
+      minúscula (`.@"struct"`) es sólo la mitad del port — `.fields` es una
+      rotura independiente en la misma línea. La reflection por dominios SÍ es
+      posible: `inline for (info.field_names)` + `@field(cfg, name)`.
+    consequence: >-
+      El sibling zkit-errors aplanó el diseño de errores creyendo que "el
+      workaround no existe". Diagnóstico correcto, conclusión falsa. Coste: se
+      regaló la garantía de base-range (unicidad de códigos pasó a ser
+      responsabilidad del llamante). Se rehace en la ronda 2.
+    addedToSkill: 'zig-0.17-migration fila 20 + zig-best-practices version notes (dotfiles 872aff0)'
+
+  - id: gt/optimize-decl-literal
+    date: '2026-08-27'
+    verifiedBy: 'axon1, tres compilaciones contra 0.17.0-dev.1884'
+    fact: >-
+      Los tags de `Optimize` se minusculizaron (`debug/safe/fast/small`,
+      `lang.zig:115`) y las mayúsculas sobreviven como **decls deprecadas**
+      (`pub const Debug: @This() = .debug`, "removed after 0.18.0"). De ahí una
+      asimetría medida: `switch (builtin.mode) { .Debug, … }` **compila**,
+      `builtin.mode == .Debug` **falla**, `== .debug` compila. La sintaxis de
+      enum literal resuelve decls además de campos (misma regla que `.empty` /
+      `.init`); `==` sólo hace peer resolution contra campos.
+    consequence: >-
+      Yo mismo estuve a punto de "arreglar" el snippet canónico del allocator de
+      `zig-best-practices`, que usa `.Debug` en un switch y es CORRECTO. Nunca
+      `release_fast`: esa grafía no ha existido nunca.
+    addedToSkill: 'zig-0.17-migration fila 21 + nota in situ en el snippet (dotfiles 872aff0)'
+
 # ── NODOS DEL PROGRAMA ──────────────────────────────────────────────────────
 nodes:
   # ── Track green: dejar los repos compilando contra 1884 ──────────────────
