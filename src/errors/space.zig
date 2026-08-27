@@ -130,25 +130,34 @@ pub fn ErrorSpace(comptime E: type, comptime domains: []const Domain) type {
         /// Emit the TypeScript data module as a comptime-known string.
         /// Emits in a single pass over domains → entries; no intermediate array.
         pub fn emitTypeScript() []const u8 {
+            // Four tables over every entry: the default 12000 backwards
+            // branches runs out around 40 codes.
+            @setEvalBranchQuota(200_000);
             comptime var out: []const u8 = &.{};
 
-            // Union type: count entries first, then emit with pipe on all but the last.
-            comptime var total: usize = 0;
-            inline for (domains) |domain| {
-                inline for (domain.entries) |_| {
-                    total += 1;
-                }
-            }
-            comptime var emitted: usize = 0;
+            // Every member carries its own leading pipe. TypeScript accepts a
+            // leading `|` on the first member, so this needs no last-element
+            // special case — the previous one dropped the pipe on the final
+            // member, which silently left that code out of the union.
             out = out ++ "export type ErrorCode =\n";
             inline for (domains) |domain| {
                 inline for (domain.entries) |entry| {
-                    emitted += 1;
-                    const prefix = if (emitted < total) "  | \"" else "  \"";
-                    out = out ++ prefix ++ entry.tag ++ "\"\n";
+                    out = out ++ "  | \"" ++ entry.tag ++ "\"\n";
                 }
             }
             out = out ++ ";\n\n";
+
+            // NAME_TO_CODE — `as const` so consumers keep the literal value
+            // types (`FILE_NOT_FOUND: 1001`, not `number`). Emitting it beats
+            // deriving it in TypeScript, which widens the type.
+            out = out ++ "export const NAME_TO_CODE = {\n";
+            inline for (domains) |domain| {
+                inline for (domain.entries, 0..) |entry, ordinal| {
+                    const code = domain.base + @as(Code, @intCast(ordinal));
+                    out = out ++ std.fmt.comptimePrint("  {s}: {d},\n", .{ entry.tag, code });
+                }
+            }
+            out = out ++ "} as const;\n\n";
 
             // CODE_TO_NAME
             out = out ++ "export const CODE_TO_NAME: Record<number, ErrorCode> = {\n";

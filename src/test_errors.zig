@@ -125,11 +125,25 @@ test "emitTypeScript: messages are correct" {
     try testing.expect(std.mem.indexOf(u8, emitted, "1001: \"Permission denied\"").? >= 0);
 }
 
-test "emitTypeScript: union syntax uses | prefix except last" {
+test "emitTypeScript: every union member carries its own | prefix" {
+    // This test used to assert the opposite ("| prefix except last"), which
+    // locked in a bug: TypeScript needs the separator on every member, so the
+    // last code was silently dropped from the union. tsc caught it the first
+    // time the emitted file was actually compiled.
     const emitted = IoSpace.emitTypeScript();
-    try testing.expect(std.mem.indexOf(u8, emitted, "  | \"FILE_NOT_FOUND\"").? >= 0);
-    try testing.expect(std.mem.indexOf(u8, emitted, "  | \"PERMISSION_DENIED\"").? >= 0);
-    try testing.expect(std.mem.indexOf(u8, emitted, "  \"INVALID_HANDLE\"").? >= 0);
+    try testing.expect(std.mem.indexOf(u8, emitted, "  | \"FILE_NOT_FOUND\"") != null);
+    try testing.expect(std.mem.indexOf(u8, emitted, "  | \"PERMISSION_DENIED\"") != null);
+    try testing.expect(std.mem.indexOf(u8, emitted, "  | \"INVALID_HANDLE\"") != null);
+    // The last member must not appear unprefixed anywhere.
+    try testing.expect(std.mem.indexOf(u8, emitted, "\n  \"INVALID_HANDLE\"") == null);
+}
+
+test "emitTypeScript: NAME_TO_CODE inverts CODE_TO_NAME" {
+    const emitted = IoSpace.emitTypeScript();
+    try testing.expect(std.mem.indexOf(u8, emitted, "export const NAME_TO_CODE = {") != null);
+    try testing.expect(std.mem.indexOf(u8, emitted, "  FILE_NOT_FOUND: 1000,") != null);
+    try testing.expect(std.mem.indexOf(u8, emitted, "} as const;") != null);
+    try testing.expect(std.mem.indexOf(u8, emitted, "1000: \"FILE_NOT_FOUND\"") != null);
 }
 
 test "emitTypeScript: DOMAIN_OF contains domain names" {
