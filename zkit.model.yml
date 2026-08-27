@@ -118,6 +118,20 @@ locks:
   - id: lock/watchdog-in
     date: '2026-08-27'
     decision: '`watchdog.zig` (candidate-h, 235 l, std-only) ENTRA en el rescate. Hallazgo de axon2.'
+  - id: lock/zig-skill-en-handoffs
+    date: '2026-08-27'
+    origin: 'waxin preguntó si los executors llevaban las skills de Zig; la respuesta era no'
+    decision: >-
+      Todo handoff a un executor o sibling que vaya a ESCRIBIR Zig empieza
+      invocando `/zig-best-practices` (y las hermanas `zig-*` que apliquen).
+      Aplica a las dos lanes, axon1 y axon2.
+    rationale: >-
+      El handoff de zkit-forge llevaba sólo un puntero en prosa a la skill más
+      una tabla de trampas de 0.17 copiada a mano. La tabla es una segunda
+      copia de un fragmento de la skill: se mantiene sola, deriva sola, y deja
+      fuera lo que no cupo (el idiom real de SafeAllocator con backing
+      allocator, `errdefer |err|`, `@fieldParentPtr` de 2 args, `mem.Alignment`,
+      `usingnamespace` borrado). Un puntero no carga contexto; una invocación sí.
   - id: lock/pages-noop
     date: '2026-08-27'
     decision: 'El workflow "Deploy Docs to Pages" de hyperdiff se queda en rojo. Deuda conocida, sin acción.'
@@ -355,8 +369,11 @@ nodes:
     repo: zkit
     owner: axon1
     title: 'B0 — reescribir el brief de ejecución con las premisas corregidas'
-    status: in_progress
+    status: done
     dependsOn: []
+    closedBy: 'Este fichero. El brief separado no llegó a escribirse porque el SSOT lo
+      absorbió: las seis correcciones viven aquí abajo y en groundTruth, que es donde
+      las leen las dos lanes. Un brief aparte sería una segunda copia que deriva.'
     corrections:
       - 'el vendorizado NO es "checkout literal, path dependency" — es submodule en otra rama'
       - 'las primitivas NO "compilan porque el .zon lo dice" — compilan porque el P2 de axon2 lo midió'
@@ -456,13 +473,19 @@ nodes:
     repo: hyperdiff
     owner: agent
     title: 'La 2ª instancia de git-cli-diff en el mismo runner queda muerta'
-    status: in_progress
+    status: done
+    resolution: >-
+      Diagnóstico cerrado, título obsoleto: no era de la 2ª instancia ni del mix
+      `dual`. Es chokidar 4.0.3, correlación 1:1 — colapsa a ~5k paths bajo
+      Bun/macOS (74-125s hasta `ready`, luego cero eventos `change`), como ya
+      documenta libgit2-chokidar.ts:11-26 en este mismo repo. `runner.ts:432`
+      construye una instancia nueva por (size, stack), así que no había
+      "instancia 1" que contaminara nada. El arreglo (portar a fs.watch en
+      git-cli-diff.ts:75 y gix-imara.ts:100) vive en bugs/catch-swallow.
     evidence: >-
       n500 sano (changeEvents=9016 spawns=6355 harnessErrors=0, S2 26.57ms) →
       n5000 todo a cero (S3 throughput 0.0%, S2/S4 timeout). libgit2-chokidar
-      hace la misma transición sin problema (15.61→15.49ms), así que NO es
-      genérico de 2ª instancia. La diferencia: git-cli-diff spawnea un proceso
-      por cambio. Reclasificado — NO era del mix `dual`.
+      hace la misma transición sin problema (15.61→15.49ms).
 
   - id: bugs/catch-swallow
     track: bugs

@@ -16,8 +16,11 @@ no dice con qué compiler algo compila.
 
 ## Reglas de código
 
-Sigue `~/.claude/skills/zig-best-practices` y las hermanas `zig-*`. Lo que más se
-incumple en el código que llega aquí desde otros repos:
+**Invoca `/zig-best-practices` antes de escribir Zig** — la skill entera, no este
+resumen. Y las hermanas `zig-*` según toque (`zig-build-system` para `build.zig`,
+`zig-cinterop` para la frontera C, `zig-debugging` para panics). Lo de abajo es un
+recordatorio de lo que más se incumple al portar código desde otros repos, no un
+sustituto de la skill.
 
 - `std.heap.SafeAllocator`, no `GeneralPurposeAllocator` (borrado en 0.16.0) ni
   `DebugAllocator` (alias deprecado).
