@@ -388,10 +388,17 @@ nodes:
     repo: styx
     owner: axon2
     title: 'media-daemon/main.zig:319 .Debug → .debug'
-    status: pending
+    status: done
     dependsOn: []
     dod: 'zig build de styx-media-daemon limpio (es 1 de los 2 únicos errores del binario de producción)'
     note: 'Independiente de la cadena de pinneo — código propio de styx.'
+    evidence: >-
+      rama styx chore/zig-017-convergence, sin push. `.Debug`→`.debug` en e858592 (ya
+      estaba). Pero el DoD real ("zig build limpio") no cerraba: apareció superficie 0.17
+      nueva, `uri.getHost` movida a `std.Io.net.HostName.fromUri` en 1884
+      (media-daemon/otel/metrics_exporter.zig:225), fix de 1 línea en bf86c08. `zig build`
+      desde native/zig/ verificado por MÍ tras el commit: output vacío, exit 0 leído con
+      mis ojos (no de memoria, no el report del executor sin repetir).
 
   - id: green/styx-gitlink
     track: green
