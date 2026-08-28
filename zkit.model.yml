@@ -747,6 +747,28 @@ groundTruth:
       a favor de la lane verificadora independiente por afirmacion
       load-bearing, mas fuerte que el que axon1 dio.
 
+  - id: gt/apologia-falsa-de-nacimiento
+    fact: >-
+      `styx/native/zig/media-core/sync/backpressure_waker.zig` declara 9
+      simbolos `extern "c"` de pthread con un comentario que los justifica
+      diciendo «Zig 0.16 does NOT declare the function symbols». axon2 lo
+      verifico contra el 0.16 que esta EN DISCO: `std.c` ya declaraba 7 de los
+      9 (c.zig:10960-10970). Y estan tambien en std.c de 0.14.1, 0.15.2,
+      0.16-dev y 0.17-dev — los cuatro compiladores en disco.
+    consequence: >-
+      La apologia NO se quedo vieja: NACIO FALSA. Es el caso limite de la regla
+      de la apologia del CLAUDE.md global («si un metodo necesita un comentario
+      largo explicando por que ese workaround esta bien asi, ese codigo es
+      malo»): aqui el comentario no solo defiende un workaround innecesario,
+      sino que afirma un hecho comprobable y FALSO sobre la stdlib, y nadie lo
+      comprobo en meses porque una apologia larga se lee como autoridad.
+      Regla operativa: cuando un comentario justifique un workaround CITANDO UN
+      HECHO sobre una dependencia o la stdlib, verifica el hecho contra la
+      version en disco antes de propagarlo. Y NUNCA copies un workaround junto
+      con su apologia a otro repo — heredarias la justificacion sin heredar la
+      comprobacion. Aplicado: los 9 extern "c" del waker NO se mueven a zkit
+      (ver cand/sync-primitives.avisoParaLaLane).
+
 # ── NODOS DEL PROGRAMA ──────────────────────────────────────────────────────
 nodes:
   # ── Track green: dejar los repos compilando contra 1884 ──────────────────
@@ -1388,7 +1410,7 @@ nodes:
     repo: styx
     owner: axon2
     title: 'Auditoria seria de styx: candidatos de extraccion y semantica real de sus primitivas'
-    status: pending
+    status: reported
     dependsOn: []
     dod: >-
       Mismas tres preguntas que audit/hyperdiff-zkit, sobre styx. Y una cuarta
@@ -1398,8 +1420,22 @@ nodes:
       `native/zig/media-core/sync/backpressure_waker.zig` es el sospechoso.
       Un candidato con 2 consumidores que en realidad necesitan cosas distintas
       es PEOR que dos copias — esa verificacion es el gate de cand/sync-primitives.
-    evidence: '~/dotfiles/AUDIT-zkit-consumidores.md'
+    evidence: '~/dotfiles/AUDIT-zkit-consumidores.md — seccion RESULTADOS de axon2 (be0274a + c81a3c1)'
     blockedBy: null
+    closedAt: '2026-08-28, entregada por axon2 antes de cerrarse (COORD a8c755a)'
+    finding: >-
+      GATE ABIERTO. El sospechoso resulto ser la mejor evidencia A FAVOR:
+      `backpressure_waker.zig` no tiene semantica propia — CONTIENE una capa
+      generica (Mutex :70, LockHolder :103, Condition :124, ~95 LOC) y monta el
+      waker de dominio encima. Misma semantica que el sync.zig de hyperdiff:
+      mutex pthread bloqueante con atributos por defecto. Y la paridad es
+      GLOBAL, no solo del waker: `pthread_mutexattr` da 0 hits en todo styx
+      (control positivo PTHREAD_MUTEX_INITIALIZER, 15) — ningun uso pide
+      recursivo, errorcheck, prioridad heredada ni reloj alternativo.
+      Deltas de API, no de comportamiento: styx no tiene tryLock ni timedWait ni
+      rama wasi, y pide init() explicito donde hyperdiff zero-inicializa. Delta
+      que tropezara quien ejecute la lane: `std.c` devuelve `E` y styx declaro
+      `c_int` (por eso compara != 0 y hyperdiff == .SUCCESS).
 
   # -- Track cand: candidatos de extraccion medidos, sin ejecutar ------------
   - id: cand/sync-primitives
@@ -1409,8 +1445,9 @@ nodes:
     title: 'Extraer primitivas de OS (relojes + Mutex/Condition sobre pthread + fs) a zkit'
     status: designed
     dependsOn: [audit/hyperdiff-zkit, audit/styx]
+    unblockedBy: 'audit/styx 2026-08-28 — gate Q4 ABIERTO, paridad de semantica confirmada'
     dod: >-
-      NO ejecutar hasta que audit/styx confirme paridad de semantica.
+      GATE ABIERTO: audit/styx confirmo paridad de semantica.
       Origen: `hyperdiff/core/zig/src/watch/sync.zig`, 321 lineas, 12
       importadores — el modulo interno mas importado de hyperdiff. Existe porque
       std se llevo esas primitivas detras de la interfaz `Io` en 0.16->master y
@@ -1421,10 +1458,40 @@ nodes:
       nanoTimestamp, 1 clock_gettime, repartidos por cache/*, observability/ y
       sync/. Misma migracion de std, dos soluciones independientes.
       Es el unico candidato conocido de la fila >=2 consumidores, o sea el unico
-      que no seria mudanza. Efecto lateral: cierra la inconsistencia interna de
-      styx (Thread.Mutex mezclado con pthread_mutex_t crudo).
+      que no seria mudanza.
+      Efecto lateral: colapsa las TRES implementaciones que styx tiene hoy del
+      mismo modulo — 4 copias literales de `fn nowNs()` mas 12 call-sites de
+      clock_gettime, el Mutex/Condition de `backpressure_waker`, y 49
+      call-sites de `@import("quic").sys` en 6 ficheros propios (incluido
+      createFile x29 en el data plane de media). `quic-zig/src/sys.zig` expone
+      sleepNs / nanoTimestamp / readFileAlloc / read / write: LA MISMA
+      SUPERFICIE que sync.zig — es la tercera implementacion y llego por
+      accidente del fork. Amortiza ademas una deuda declarada en
+      `styx/native/zig/CLAUDE.md` como «3 sitios, si se vuelve estructural»:
+      medidos 49, la clausula de contencion ESTA ROTA.
+    correccionDeAxon2: >-
+      CLAIM DE AXON1 FALSIFICADO, y queda escrito en vez de borrado. El nodo
+      decia «8 Thread.Mutex ... cierra la inconsistencia interna de styx
+      (Thread.Mutex mezclado con pthread_mutex_t crudo)». Los 15 hits de
+      `Thread.Mutex` en codigo propio de styx son COMENTARIOS explicando por que
+      NO se usa: cero usos reales. Prueba que lo cierra sin discusion:
+      `std.Thread.Mutex` NO EXISTE ni en 0.16 ni en 1893
+      (`grep 'pub const Mutex' std/Thread.zig` vacio en los dos, control
+      positivo 27 `pub`), asi que un uso real no compilaria y styx compila
+      verde. styx es UNIFORME en pthread; esa inconsistencia no existia.
+      Origen del error: axon1 conto hits de grep sin mirar si eran codigo o
+      comentario — medir el repo ajeno con el instrumento propio, otra vez.
+      No mata el candidato: lo mejora, porque la inconsistencia real (tres
+      implementaciones) es peor que la inventada.
+    avisoParaLaLane: >-
+      Los 9 `extern "c"` del waker NO deben moverse a zkit. `std.c` ya
+      declaraba 7 de los 9 en 0.16 (verificado contra el 0.16 en disco,
+      c.zig:10960-10970), asi que la apologia que los justifica —«Zig 0.16 does
+      NOT declare the function symbols»— ERA FALSA EL DIA QUE SE ESCRIBIO, no
+      se quedo vieja. Copiarlos tal cual haria que zkit heredase una
+      justificacion falsa. Ver gt/apologia-falsa-de-nacimiento.
     evidence: '~/dotfiles/AUDIT-zkit-consumidores.md'
-    blockedBy: 'audit/styx — paridad de semantica sin verificar'
+    blockedBy: null
 
   - id: cand/errorspace-styx
     track: cand
@@ -1444,6 +1511,22 @@ nodes:
       el mismo problema (codigos de error cruzando una frontera FFI hacia TS).
       Esa es la diferencia con cand/watching: aqui el consumidor existe y se
       llama styx; alli es una categoria sin nombre.
+    confirmadoPorAxon2: >-
+      SEGUNDO CONSUMIDOR VERIFICADO, y ya esta derivando. axon1 escribio
+      «mecanismo con segundo uso plausible — plausible no es real»; axon2 fue a
+      buscarlo y ES REAL: `styx/native/zig/media-core/source/local_file.zig:109`
+      declara «Source error codes — mirrors 'SourceErrorCode' from
+      @styx/source-sdk» — una tabla de errores mantenida A MANO en Zig que dice
+      espejar la de TS. «Mirrors» es FALSO hoy, medido: 4 codigos Zig sin par en
+      TS (io_error, invalid_offset, path_traversal, range_too_large), 1 TS sin
+      par en Zig (SOURCE_FILE_NOT_REGULAR), y RANGE_TOO_LARGE prometido en 3
+      comentarios Zig y ausente de TODO el TS (0 hits; control positivo en el
+      mismo corpus, SOURCE_FILE_NOT_FOUND -> 10).
+      Uno de los huerfanos, `path_traversal`, es un CODIGO DE SEGURIDAD
+      (ThreatModel-v0 §5) que el lado TS no sabe nombrar.
+      Es exactamente la enfermedad que ErrorSpace cura, y es la misma que tenia
+      hyperdiff antes del gate. CUENTA CORREGIDA DEL PROGRAMA:
+      libreria 2 · mudanza 1 · archivo 4.
     evidence: '~/dotfiles/AUDIT-zkit-consumidores.md'
     blockedBy: null
 
@@ -1475,8 +1558,40 @@ nodes:
       CALIENTE y tiene cola de trabajo viva (I4.x, kqueue, el bench de hot-files
       roto). Mover un subsistema en plena iteracion es imprudente aunque el
       recuento saliera a favor. Extraer DESPUES de que su cola cierre, no antes.
+    veredictoAxon2: >-
+      (c) — EL PLAN DE STYX NO TIENE HUECO CON FORMA DE WATCHER. Contradice la
+      intuicion de waxin («styx para algo va a necesitar watching seguro») y
+      axon2 se corrigio SOLO a mitad de camino: escribio (b) inferiendo «el plan
+      difiere un scanner, luego lo implica», y un segundo barrido lo tumbo —
+      un scanner NO es un watcher. `discovery -> identification -> mutation` se
+      sirve con un recorrido bajo demanda; la vigilancia es lo que convierte
+      «rescan cuando le dan al boton» en «enterarse sin sondear». axon2 nombro
+      su propio sesgo: la inferencia iba en la direccion que convenia a su
+      tesis, el mismo sesgo del ledger inflado ocho horas antes.
+      Razon de fondo: styx POSEE el download engine (por eso no le aplica el
+      watch-folder de Sonarr/Jellyfin), la coherencia es re-probe al leer, y
+      `missing` es un ESTADO DEL MODELO, no un evento.
+      Negativos declarados de los otros 3 candidatos: eviccion externa del L2
+      NO (el daemon es dueno exclusivo del dir) · hot-reload de config NO (0
+      hits) · fixtures del soak NO (genera su trafico en proceso). Y los 34
+      hits de `polling` son lo CONTRARIO de lo buscado: r40 §2 «backpressure
+      waker-segmentado NUNCA polling», sobre wakeups entre threads, ya resuelto
+      con pthread_cond. No hay un solo bucle de sondeo del filesystem en styx.
+      LO QUE SOBREVIVE: (1) la condicion deja de ser especulativa y pasa a ser
+      CITABLE — «si abre el sprint del scanner (post-F2 / F-PLUGINS-SDK) Y
+      adopta watch-folders»; el plan lo difiere explicitamente en 3 sitios
+      (r48:54, roadmap.spec.yml:344, r49:157). Eso es deferred CON DISPARADOR,
+      que vale mas que deferred a secas. (2) La respuesta a P2, en la que las
+      dos mediciones coinciden: si aterriza, pide ARBOL RECURSIVO COALESCIDO
+      (la mitad FSEvents), NO el camino caliente por fd. El fd caliente
+      —justo lo que hyperdiff optimiza— no tiene consumidor en el plan de styx.
+      Va escrito aunque no ayude.
+      La medicion de axon1 sobre libxev SIGUE EN PIE y sigue siendo correcta:
+      si la necesidad apareciera, styx no tendria alternativa. Simplemente la
+      necesidad tampoco esta. cand/watching se queda deferred con MAS margen
+      del que tenia, no con menos.
     evidence: '~/dotfiles/AUDIT-zkit-consumidores.md'
-    blockedBy: 'cola de trabajo viva en hyperdiff (I4.x, kqueue, bench de hot-files roto)'
+    blockedBy: 'sin necesidad en el plan de styx (veredicto c) + cola viva en hyperdiff'
     revision: >-
       REVISADO 2026-08-28 tras waxin: «styx para algo va a necesitar watching
       seguro». Axon1 habia medido solo «¿vigila styx hoy?» (no) y NO habia
