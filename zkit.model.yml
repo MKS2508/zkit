@@ -2055,11 +2055,41 @@ nodes:
       dos primeros se extraen por sus propios meritos. El trabajo ya decidido
       paga por adelantado el coste de extraccion del watching.
 
+  - id: cand/ipc-wakeup-pipe
+    track: cand
+    repo: zkit
+    owner: axon-zkit
+    title: 'WakeupPipe (Zig puro, sin C-ABI) — migrar de hyperdiff a zkit'
+    status: designed
+    dependsOn: [audit/hyperdiff-zkit]
+    unblockedBy: >-
+      Split de cand/ipc-wakeup, 2026-08-28, waxin en vivo. El doc de jarvis de la sesión
+      agentics (§B) ya identificaba que el nodo original conflacionaba dos cosas: esta
+      migración Zig-a-Zig, y el port C-ABI del wire. Solo la segunda depende de la §5 y del
+      freeze del wire — esta no.
+    dod: >-
+      Migrar `hyperdiff/core/zig/src/watch/ipc.zig` (151 líneas, `WakeupPipe`: el watcher
+      escribe 1 byte a un pipe tras empujar al ring, el consumidor mete el fd de lectura en
+      su event loop y drena) a `zkit/src/ipc.zig`. Consumidor real y NOMBRADO EN CÓDIGO:
+      `MKS2508/conduit` (`packages/sdk-zig/src/sdk.zig:13`, TODO literal
+      "cuando zkit/ipc/ exista, sub-importar @zkit/handlepool") — ver
+      `gt/conduit-reimplemento-zkit-y-le-quito-la-seguridad`. hyperdiff mismo es 2º
+      consumidor (ya tiene el código, pasa a importarlo). Sin C-ABI, sin §5, sin freeze de
+      wire — es Zig linkando Zig, mismo patrón que `trans/wire-hyperdiff`.
+      Cierre por `gt/extraer-sin-sustituir`: NO está hecho hasta que el original en
+      hyperdiff está BORRADO y hyperdiff importa la copia de zkit — no basta con copiar.
+    evidence: '~/dotfiles/AUDIT-zkit-consumidores.md'
+    note: >-
+      Toca hyperdiff (repo de axon1) para el borrado del original. axon1 no está activo en
+      esta sesión (waxin confirmado 2026-08-28); avisado en COORD antes de tocar nada de ese
+      repo.
+    blockedBy: null
+
   - id: cand/ipc-wakeup
     track: cand
     repo: zkit
     owner: 'axon1 construye; el axon unificado sigue siendo broker de la §5'
-    title: 'ipc/ — el modulo fundacional de zkit que nunca se construyo, y hyperdiff tiene uno funcionando'
+    title: 'ipc/ — el port C-ABI del wire (Swift/TS), NO la migración Zig — ver cand/ipc-wakeup-pipe'
     status: designed
     dependsOn: [audit/hyperdiff-zkit]
     dod: >-
