@@ -12,3 +12,4 @@ pub const TrackingAllocator = @import("tracking_allocator.zig").TrackingAllocato
 pub const HandleSlab = @import("handle.zig").HandleSlab;
 pub const log = @import("log.zig");
 pub const errors = @import("errors.zig");
+pub const WakeupPipe = @import("ipc.zig").WakeupPipe;
