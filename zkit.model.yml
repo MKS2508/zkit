@@ -154,6 +154,16 @@ statusVocabulary: [pending, in_progress, reported, done, blocked, designed, defe
 
 # ── LOCKS de waxin. No re-abrir sin evidencia nueva. ────────────────────────
 locks:
+  - id: lock/zkit-prioridad-cross-repo
+    date: '2026-08-28'
+    quote: 'el trabajo de hacer zkit pasa a ser prioridad CROSS REPO'
+    decision: >-
+      zkit deja de ser una lane de extraccion oportunista y pasa a prioridad
+      cross-repo. Contexto de la decision, dado por waxin la misma madrugada:
+      mks-agentics se muda al patron spire; agentics, styx y hyperdiff seran los
+      tres consumidores que MOLDEAN el diseno por dogfood, asi que no es un
+      framework fijo que se impone. Lo formal — naming, que debe ser y que no,
+      ADRs, interview — queda para el dia siguiente; la DIRECCION esta decidida.
   - id: lock/version
     date: '2026-08-27'
     quote: 'todo va a la 017 dev alineado todo a la ultima'
@@ -901,6 +911,56 @@ groundTruth:
       El propio doc de inception, que sigue siendo la referencia que todos
       citamos para la §5. Antes de usarlo para decidir, re-verificar sus datos:
       el repo se movio y el doc se quedo.
+    verificadoPor: axon1
+    fecha: '2026-08-28'
+
+  - id: gt/conduit-reimplemento-zkit-y-le-quito-la-seguridad
+    fact: >-
+      `MKS2508/conduit` (repo nuevo, commit 522117f) tiene un `packages/sdk-zig/`
+      que REIMPLEMENTA HandleSlab y ReorderBuffer en vez de consumir zkit.
+      `dependencies = .{}` esta vacio; la unica mencion a zkit en su .zon es un
+      comentario. Verificado clonando el repo.
+      Y el propio fuente lo declara: `sdk.zig:13` lleva
+      "TODO(sub-import): cuando zkit/ipc/ exista, sub-importar @zkit/handlepool".
+      El consumidor no es inferido ni plausible — esta escrito en el codigo,
+      esperando.
+      La reimplementacion es materialmente PEOR: su HandleSlab es `next: u64`
+      monotono mas una free list, SIN contador de generacion. Un handle liberado
+      se reutiliza con el mismo valor, asi que un handle viejo sigue resolviendo:
+      use-after-free por construccion. La `HandleSlab(T)` de zkit (269 lineas)
+      salta la generacion 0 y la incrementa al liberar exactamente para detectar
+      eso. Su ReorderBuffer son ~48 lineas contra las 822 de zkit, sin
+      SequenceNumber, sin semantica terminal, sin timeout de gaps ni reset.
+      Ademas su build.zig.zon declara minimum_zig_version 0.17.0-dev.1893 y el
+      repo se construyo con 0.15.1, sin guard comptime: el mismo agujero que
+      cerramos anoche en libxev y quic-zig, demostrado en vivo en un repo recien
+      nacido.
+    contradice: >-
+      El veredicto "ReorderBuffer: cero consumidores, archivo" de la auditoria.
+      Tiene un segundo consumidor Zig que ya lo duplico. Y contradice el precio
+      que el marco de 3 scopes le pone al scope zkit/ipc ("no-ahora" porque zkit
+      es recien nacido): el coste de esperar NO es cero, se paga en copias
+      duplicadas y menos seguras acumulandose en cada repo nuevo.
+    verificadoPor: axon1
+    fecha: '2026-08-28'
+
+  - id: gt/el-mapa-de-consumidores-a-fecha-de-hoy
+    fact: >-
+      Consumidores reales o declarados de zkit a 2026-08-28, todos verificados
+      salvo donde se dice:
+      hyperdiff (Zig, EN PRODUCCION: HandleSlab x3 slabs + errors.ErrorSpace);
+      styx (Zig: HandleSlab + ErrorSpace via local_file.zig + TrackingAllocator
+      en el soak); conduit (Zig, reimplemento HandleSlab y ReorderBuffer con TODO
+      apuntando a zkit); mks-agentics (waxin lockea que se muda al patron y sera
+      consumidor); spire y consumer-bus (TypeScript, privados, spire absorbe a
+      consumer-bus, consumen por C-ABI no el modulo Zig); wraith-app (Swift, es
+      el sujeto de la §5); mirror (el proyecto del que nacio spire).
+      Los tres que MOLDEAN el diseno por dogfood, per lock de waxin: agentics,
+      styx y hyperdiff.
+    contradice: >-
+      La premisa con la que se hizo la auditoria de consumidores, que midio DOS
+      repos. Con este mapa, varios modulos que salieron "1 consumidor = mudanza"
+      o "cero = archivo" tienen segundo consumidor sin mover una linea.
     verificadoPor: axon1
     fecha: '2026-08-28'
 
