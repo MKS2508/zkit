@@ -1534,10 +1534,13 @@ nodes:
     track: cand
     repo: zkit
     owner: 'axon unificado'
-    title: 'Vigilancia de ficheros cross-plataforma (FSEvents + kqueue) — el activo mayor, sin consumidor'
-    status: deferred
-    dependsOn: []
-    unblockedBy: null
+    title: 'Vigilancia de ficheros cross-plataforma (FSEvents + kqueue) — el activo mayor'
+    status: designed
+    dependsOn: [cand/sync-primitives, cand/ipc-wakeup]
+    unblockedBy: >-
+      waxin 2026-08-28, DESPUES del veredicto (c) de axon2 y conociendolo:
+      «yo quiero watching aun asi, ademas eso lo hace mas testeable el nucleo,
+      aunque no sea para styx». Decision tomada con el negativo delante.
     dod: >-
       `hyperdiff/core/zig/src/watch/platform.zig` (2289) +
       `platform_kqueue.zig` (1125) = 3414 lineas de watching cross-plataforma:
@@ -1590,8 +1593,42 @@ nodes:
       si la necesidad apareciera, styx no tendria alternativa. Simplemente la
       necesidad tampoco esta. cand/watching se queda deferred con MAS margen
       del que tenia, no con menos.
+    decisionDeWaxin: >-
+      APROBADO POR TESTABILIDAD, no por consumidores. waxin aporta un eje que el
+      criterio de este track NO captura: extraer el subsistema hace el NUCLEO
+      mas testeable, y eso vale aunque el segundo consumidor no exista.
+      Que compra de verdad, dicho sin inflar: hoy platform*.zig YA tiene tests
+      dentro de hyperdiff, asi que la ganancia no es «pasa a estar testeado».
+      Es (1) la frontera pasa a estar IMPUESTA POR EL COMPILADOR en vez de por
+      disciplina — platform.zig tiene hoy 1 mencion de tipo de dominio y la
+      extraccion la fuerza a 0 por construccion; (2) el bucle de test baja de
+      los 67 steps / 1209 tests de hyperdiff a la suite pequena de zkit, que es
+      la diferencia entre iterar y esperar; (3) el efecto clasico de toda
+      extraccion: obliga a que la API sea consumible por un extrano y destapa el
+      acoplamiento escondido.
+      Lo que NO cambia: sigue sin haber segundo consumidor y el veredicto (c) de
+      axon2 sigue siendo correcto. Este nodo sube por un motivo DISTINTO, no
+      porque el conteo de consumidores haya cambiado. Escrito asi para que nadie
+      lo cite dentro de un ano como «zkit tenia 2 consumidores para el watcher».
+    objecionRetirada: >-
+      axon1 puso como segundo motivo para diferir «es el camino caliente y tiene
+      cola de trabajo viva: mover un subsistema en plena iteracion es
+      imprudente». ESA OBJECION SE HA EVAPORADO la misma noche: I4.x quedo
+      CERRADO por medicion (f4f2a9a, atomic-save 0.48-1.82ms en banda kqueue) y
+      el bench de hot-files que lo medía quedo arreglado. Lo que resta de la
+      cola del camino caliente esta diferido por lock/matriz-al-final de waxin.
+      O sea que la ventana para mover esto es AHORA, y es la mejor que va a
+      haber. La objecion era mia y la retiro con el dato, no por deferencia.
+    ordenObligatorio: >-
+      NO NEGOCIABLE, es topologia: la cadena de deps es sync -> ipc -> platform.
+      `platform.zig` importa std, builtin, sync e ipc. Extraer platform antes
+      arrastraria sus dos dependencias de todos modos, asi que el orden no es
+      una preferencia de secuenciacion sino la unica forma de que cada paso sea
+      verde por si mismo. Y los dos primeros pasos se justifican SOLOS
+      (sync tiene 2 consumidores medidos; ipc es el modulo fundacional de zkit),
+      asi que ninguno depende de que este se apruebe.
     evidence: '~/dotfiles/AUDIT-zkit-consumidores.md'
-    blockedBy: 'sin necesidad en el plan de styx (veredicto c) + cola viva en hyperdiff'
+    blockedBy: 'cand/sync-primitives y cand/ipc-wakeup — orden topologico, no preferencia'
     revision: >-
       REVISADO 2026-08-28 tras waxin: «styx para algo va a necesitar watching
       seguro». Axon1 habia medido solo «¿vigila styx hoy?» (no) y NO habia
