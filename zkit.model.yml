@@ -865,6 +865,45 @@ groundTruth:
     verificadoPor: axon1
     fecha: '2026-08-28'
 
+  - id: gt/los-4-huerfanos-de-zkit-no-son-archivo-son-el-bus
+    fact: >-
+      Los modulos que la auditoria marco ARCHIVO por cero consumidores no estan
+      muertos: estan HUERFANOS DE SU CONSUMIDOR PREVISTO, que es consumer-bus.
+      Leidos sus docstrings: `SubscriberQueue(T)` (481 lineas) es una cola
+      acotada POR SUSCRIPTOR con senalizacion explicita de overflow y marcador de
+      discontinuidad observable en el siguiente pop; `ReorderBuffer(T)` +
+      `SequenceNumber` (822) es reordenacion acotada con semantica terminal, gaps
+      con timeout y reset; `HungWorkerWatchdog` (233) es watchdog por deadline.
+      Eso es, pieza por pieza, el substrato de un bus pub/sub multi-consumidor
+      con snapshot+delta y backpressure por suscriptor — que es literalmente la
+      descripcion de `@mks2508/consumer-bus`. 1.536 lineas ya escritas.
+      El doc de inception lo dice explicito en §3.3: consumer-bus es "el
+      candidato real, no especulativo".
+    contradice: >-
+      El veredicto "4 archivo" de la auditoria de consumidores. El conteo era
+      correcto (cero consumidores hoy) pero la etiqueta era falsa: archivo
+      implica que no sirven. Sirven, y su consumidor existe, esta publicado y
+      waxin lo quiere unificar ya.
+    verificadoPor: axon1
+    fecha: '2026-08-28'
+
+  - id: gt/el-inception-esta-stale-sobre-el-transport
+    fact: >-
+      `~/dotfiles/HANDOFF-zkit-inception.md` §3.3 declara el transport
+      unix-socket de consumer-bus como STUB con `err:'not_implemented'`. Es
+      FALSO a fecha 2026-08-28: clonado el repo, `src/transport/` tiene
+      `unix-socket.server.ts` (276 lineas) y `unix-socket.transport.ts` (309),
+      y el grep de `not_implemented` devuelve cero.
+      Importa porque ese dato era la mitad del argumento para que zkit
+      implementase el protocolo: si en TS no existia, hacerlo en Zig salia casi
+      gratis. Existe. El argumento hay que rehacerlo con el dato bueno.
+    contradice: >-
+      El propio doc de inception, que sigue siendo la referencia que todos
+      citamos para la §5. Antes de usarlo para decidir, re-verificar sus datos:
+      el repo se movio y el doc se quedo.
+    verificadoPor: axon1
+    fecha: '2026-08-28'
+
 nodes:
   # ── Track green: dejar los repos compilando contra 1884 ──────────────────
   - id: green/libxev-zon
@@ -1792,21 +1831,30 @@ nodes:
       threads — el watcher escribe 1 byte tras empujar al ring, el consumidor
       mete el fd de lectura en su event loop (epoll/kqueue/libuv/Bun) y drena.
       zkit nacio con `ipc/` como modulo fundacional y NUNCA se construyo.
-      Segundo consumidor: waxin reporta (2026-08-28, madrugada) que YA tiene un
-      consumidor en OTRO proyecto suyo que necesita ipc cuanto antes. Proyecto
-      SIN NOMBRAR todavía: hay que nombrarlo y verificarlo antes de contarlo
-      como verificado. Si se confirma, el módulo se justifica solo (hyperdiff +
-      ese proyecto = 2) y deja de depender de styx.
+      Consumidores NOMBRADOS y verificados en GitHub (2026-08-28): `MKS2508/spire`
+      (TypeScript, "Typed runtime framework: core + sdk + bus + db + host") y
+      `MKS2508/consumer-bus` (TypeScript, pub/sub local para daemons
+      multi-consumidor), los dos PRIVADOS — no publicos, corregido. spire va a
+      ABSORBER a consumer-bus. Los dos estan pendientes de revision y unificacion
+      con interview; spire nacio de vibecoding.
+      OJO al matiz que cambia el analisis: los dos son TypeScript, asi que no
+      consumirian el modulo Zig directamente sino su superficie por C-ABI. La
+      pregunta de si zkit debe implementar el protocolo es EXACTAMENTE la §5.
       Arrastra ademas la decision mas vieja sin abrir del programa: la seccion 5
       del doc de concepcion (Swift-nativo vs zkit/ipc por C ABI) debia gatearse
       con un AskUserQuestion a waxin y nunca se hizo. Abrir esa pregunta ANTES
       de escribir codigo.
     evidence: '~/dotfiles/AUDIT-zkit-consumidores.md'
     blockedBy: >-
-      YA NO lo gatea la sección 5. Con un consumidor fuera del programa, la §5
-      (Swift-nativo vs zkit/ipc por C ABI) sólo decide si styx es el TERCER
-      consumidor, no si el módulo existe. Bloqueo real que queda: nombrar y
-      verificar ese consumidor. La §5 sigue siendo del axon unificado.
+      CORRECCION de axon1 sobre lo que el mismo escribio horas antes: la §5 NO va
+      de styx. Leida en `~/dotfiles/HANDOFF-zkit-inception.md` §5, va de
+      **wraith-app (Swift)** hablando consumer-bus: opcion A, Swift implementa
+      NDJSON-sobre-unix-socket por su cuenta; opcion B, zkit/ipc implementa el
+      protocolo UNA vez por C-ABI y lo consumen Swift y el consumer Linux.
+      El desempate que el propio doc fija: cuanto falta para el consumer Linux
+      (semanas -> B gana facil; meses -> A es lo pragmatico).
+      Sigue siendo un AskUserQuestion pendiente con waxin. Owner del broker: por
+      decidir — no es del axon unificado, que es de styx.
 
 # ── Evidencia: dónde vive el porqué (NO duplicar aquí) ──────────────────────
 evidence:
