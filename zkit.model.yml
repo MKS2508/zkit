@@ -1015,6 +1015,98 @@ groundTruth:
     verificadoPor: axon1
     fecha: '2026-08-28'
 
+  - id: gt/zkit-no-tiene-frontera-c-abi-y-esa-es-la-puerta
+    fact: >-
+      `grep -rn "export fn|callconv(.C)"` sobre todo `zkit/src/` devuelve CERO.
+      zkit no expone ninguna frontera C-ABI: solo se puede consumir como modulo
+      Zig linkado (`b.dependency` + `addImport`), que exige que el consumidor
+      compile en Zig. Verificado por el explore del 28-ago.
+      Consecuencia que reordena el programa: los cuatro consumidores no-Zig
+      (spire y agentics en TS, wraith-app en Swift, el bridge de conduit) NO
+      estan bloqueados por que falte `ipc` — estan bloqueados por la frontera
+      misma. `ipc` es el contenido; el C-ABI es la puerta, y hoy no existe.
+      Decidir la frontera va ANTES que disenar `ipc`.
+    fuente: docs/dossier-consumidores-2026-08-28.md
+    fecha: 2026-08-28
+
+  - id: gt/hyperdiff-y-styx-ya-consumen-zkit-en-produccion
+    fact: >-
+      Dos consumidores reales, wireados y verdes, no aspiracionales.
+      hyperdiff: `HandleSlab` en tres slabs (`src/exports.zig:50,153-157` para
+      caches FFI; `src/watch/exports.zig:40,47,354` para WatchSlab y
+      SessionSlab) y `errors.ErrorSpace` para sus 38 codigos
+      (`src/errors.zig:27,57`). Arista en `core/zig/build.zig.zon:8-11`.
+      styx: `HandleSlab` como pool de buffers de la cache tiered
+      (`media-core/cache/tiered_cache.zig:19,46`, codigo de produccion, no test)
+      y `TrackingAllocator` en el daemon (`media-daemon/main.zig:61-62`).
+      Wireado el mismo 28-ago en los commits 29dd1a9 y 2c14285 (este ultimo
+      borra su copia local de TrackingAllocator, -95 lineas netas), con tests y
+      TSAN en verde.
+      Los dos pinean el mismo tarball `09fd8cfc`, ANTERIOR al guard comptime que
+      se anadio en 86a36ef: sus copias vendorizadas no lo llevan.
+    fuente: docs/dossier-consumidores-2026-08-28.md
+    fecha: 2026-08-28
+
+  - id: gt/el-wire-tiene-tres-bugs-y-por-eso-no-se-puede-congelar
+    fact: >-
+      El freeze del wire no es una decision pendiente: es "arreglar tres bugs y
+      LUEGO decidir". Encontrados leyendo el server contra el transport y el
+      cliente de consumer-bus.
+      (a) El heartbeat mata toda conexion sana a los ~45s: el server cuenta
+      `missedCount`, que solo se resetea con un `pong`, y cierra a las 3 fallas,
+      pero NUNCA envia un `ping` (grep de "type: 'ping'" da cero). El cliente
+      solo responde `pong` a un `ping` que jamas llega.
+      (b) Doble `hello`: el transport manda uno con identidad hardcodeada
+      `{consumerType:'wraith'}` y un campo `transport` que no existe en
+      `IHelloFrame`; despues `ConsumerBusClient` manda el suyo con la identidad
+      real. El transporte in-process no manda ninguno — rompe la invariante I6
+      que el propio `transport.contract.ts` declara.
+      (c) El `authToken` viaja en el SEGUNDO hello, y para entonces el server ya
+      marco `authenticated=true` y lo enruta al dispatcher, que no invoca
+      `authenticate`. La auth por socket es estructuralmente inalcanzable.
+      Portar un hablante Zig contra esto congela el bug, no el contrato.
+    fuente: docs/evidence/explore-consumidores-2026-08-28/spire-cb.md
+    fecha: 2026-08-28
+
+  - id: gt/ffi-por-evento-hacia-ts-es-la-forma-equivocada
+    fact: >-
+      Descartada la via de que spire/consumer-bus consuman las colas de zkit por
+      FFI. Lo que viajaria son objetos JS dinamicos con payload validado en
+      runtime; Zig necesita `[]T` de layout fijo, asi que habria que serializar
+      cada envelope en CADA push/pop — el marshaling cuesta mas que la operacion
+      pura en JS (indices en un array, O(1)), y el volumen de ese bus (consumers
+      CLI/MCP/menubar de un daemon personal) no esta cerca del regimen que lo
+      justificaria.
+      Para el lado TS lo que tiene sentido es portar las SEMANTICAS, no el
+      codigo: `SubscriberQueue` es literalmente la pieza que el DESIGN.md de
+      consumer-bus marca como ausente (el wire ya reserva `IOverflowFrame` en
+      frames.ts:125-130 y nada lo construye nunca), y `HungWorkerWatchdog` mapea
+      1:1 al heartbeat hand-rolled y roto del server.
+      La palanca real de zkit no es FFI hacia TS: es un hablante Zig nativo del
+      wire, donde el consumidor es un proceso Zig y las primitivas se usan tal
+      cual.
+    fuente: docs/dossier-consumidores-2026-08-28.md
+    fecha: 2026-08-28
+
+  - id: gt/deuda-propia-de-zkit-que-saco-el-explore
+    fact: >-
+      Tres cosas que son nuestras, no de los consumidores.
+      1. `TrackingAllocator.resize()` tiene under/overflow de `live_bytes` si el
+      allocator interno redondea al alza en un shrink. Estaba por igual en las
+      copias de styx y de zkit; styx dedupeo hacia nosotros en 2c14285, asi que
+      el bug ahora vive SOLO aqui y es upstream.
+      2. `zkit.log.scoped` es un DOWNGRADE frente a lo que hacen los
+      consumidores: el `std.log.scoped` nativo de Zig es filtrable por scope via
+      `std_options.log_scope_levels`, y el nuestro es solo un prefijo de string
+      sobre el scope por defecto — pierde esa granularidad. zkit tiene 0
+      consumidores de su propio `log`, y hyperdiff y styx usan el nativo.
+      Candidato a borrar, no a promocionar.
+      3. `HandleSlab` no es thread-safe (documentado en handle.zig:29) y esa
+      responsabilidad la carga el consumidor; styx lo serializa bajo
+      `TieredCache.mutex`.
+    fuente: docs/dossier-consumidores-2026-08-28.md
+    fecha: 2026-08-28
+
   - id: gt/freeze-del-wire-es-precondicion-del-port-a-c-abi
     fact: >-
       Devuelto por la sesion de mks-agentics (COORD
@@ -1737,7 +1829,7 @@ nodes:
   - id: cand/sync-primitives
     track: cand
     repo: zkit
-    owner: 'axon unificado'
+    owner: 'zkit'
     title: 'Extraer primitivas de OS (relojes + Mutex/Condition sobre pthread + fs) a zkit'
     status: designed
     dependsOn: [audit/hyperdiff-zkit, audit/styx]
@@ -1829,7 +1921,7 @@ nodes:
   - id: cand/watching
     track: cand
     repo: zkit
-    owner: 'axon unificado'
+    owner: 'zkit'
     title: 'Vigilancia de ficheros cross-plataforma (FSEvents + kqueue) — el activo mayor'
     status: designed
     dependsOn: [cand/sync-primitives, cand/ipc-wakeup]
