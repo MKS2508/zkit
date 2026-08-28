@@ -28,11 +28,11 @@ Imports = sólo `std`, `builtin`, `sync`, `ipc`. Ningún `extern struct` del dom
 | `watch/ipc.zig` | 151 | `WakeupPipe` — fd que entra en un event loop externo | consumidor nuevo reportado por waxin |
 | `watch/hot_ranker.zig` | 372 | ranking de ficheros calientes | |
 | `watch/state/blob_cache.zig` | 273 | LRU con cap en bytes | su único extern es `CacheStats`, telemetría |
-| `watch/patch_ring.zig` | 625 | anillo de **bytes** SPSC | `RecordHeader` es su propio formato de registro, no del diff |
+| `watch/patch_ring.zig` | 671 | anillo de **bytes** SPSC | `RecordHeader` es su propio formato de registro, no del diff. Eran 625 hasta `73e5432` (28-ago), que arregló el atasco con records mayores que el scratch del consumidor |
 | `watch/platform_kqueue.zig` | 1125 | kqueue | |
 | `watch/platform.zig` | 2289 | FSEvents + inotify + dispatch | sus 2 externs son ABI de Apple (`CFRunLoopSourceContext`, `FSEventStreamContext`), no dominio |
 
-**Total: 5.156 líneas.**
+**Total: 5.202 líneas.**
 
 ## Tier 2 — genérico en estructura, payload con forma de dominio
 
