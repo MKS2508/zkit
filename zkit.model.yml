@@ -86,6 +86,15 @@ lanes:
     model: sonnet
     owns: []
     note: 'análisis acotado read-only; no commitea'
+  - id: axon-zkit
+    session: 'zkit-main (Claude Code interactivo)'
+    model: anthropic
+    owns: [zkit]
+    note: >-
+      Primera sesión interactiva sobre zkit, arrancada 2026-08-28 con waxin en
+      hands. Hereda cand/sync-primitives y cand/watching — owner ya puesto a
+      'zkit' por axon1 en 9d577b9 esa misma mañana, antes de que esta sesión
+      existiera.
 
 # ── FLOTA de siblings. Cada uno es una sesión Claude real en su worktree. ───
 # Un sibling NUNCA escribe este fichero: escribe su report, el axon dueño lo
@@ -1829,7 +1838,7 @@ nodes:
   - id: cand/sync-primitives
     track: cand
     repo: zkit
-    owner: 'zkit'
+    owner: axon-zkit
     title: 'Extraer primitivas de OS (relojes + Mutex/Condition sobre pthread + fs) a zkit'
     status: designed
     dependsOn: [audit/hyperdiff-zkit, audit/styx]
@@ -1921,7 +1930,7 @@ nodes:
   - id: cand/watching
     track: cand
     repo: zkit
-    owner: 'zkit'
+    owner: axon-zkit
     title: 'Vigilancia de ficheros cross-plataforma (FSEvents + kqueue) — el activo mayor'
     status: designed
     dependsOn: [cand/sync-primitives, cand/ipc-wakeup]

@@ -19,11 +19,18 @@
         "owns": ["hyperdiff", "quic-zig", "libxev", "zkit"]
       },
       {
-        "id": "axon2",
+        "id": "axon-unificado",
         "session": "styx-coord",
         "model": "anthropic",
         "owns": ["styx"],
-        "note": "axon-v2: nunca implementa código, despacha y verifica"
+        "note": "reemplaza a axon2 (waxin disolvió 2026-08-28 tras m6; ver zkit.model.yml lanes:). axon-v2: nunca implementa código, despacha y verifica"
+      },
+      {
+        "id": "axon-zkit",
+        "session": "zkit-main (Claude Code interactivo)",
+        "model": "anthropic",
+        "owns": ["zkit"],
+        "note": "primera sesión interactiva sobre zkit (2026-08-28). Hereda cand/sync-primitives y cand/watching, owner ya reasignado a 'zkit' por axon1 en 9d577b9."
       },
       {
         "id": "sibling",
