@@ -70,11 +70,17 @@ lanes:
     session: hyperdiff
     model: opus
     owns: [hyperdiff, quic-zig, libxev, zkit]
-  - id: axon2
-    session: styx-coord
+  - id: axon-unificado
+    session: axon-unified
     model: anthropic
     owns: [styx]
-    note: 'axon-v2: NUNCA implementa código, despacha y verifica'
+    note: >-
+      Reemplaza a axon2, que waxin disolvió el 2026-08-28 tras entregar su
+      auditoría y verificar m6. axon1 lo mató sobre verificación propia
+      (1 worktree, master sincronizado, cero ramas sin mergear). Reparto
+      acordado por el propio unificado: quic-zig + libxev + el gitlink son de
+      axon1; guard.yml, package.json, bun.lock, .claude/rules/** y docs/** de
+      styx son suyos.
   - id: agent
     session: 'subagente de axon1'
     model: sonnet
@@ -770,6 +776,68 @@ groundTruth:
       (ver cand/sync-primitives.avisoParaLaLane).
 
 # ── NODOS DEL PROGRAMA ──────────────────────────────────────────────────────
+  - id: gt/mitad-del-kit-sin-consumidores
+    fact: >-
+      De los 8 símbolos que `zkit/src/root.zig` exporta, sólo DOS tienen dos
+      consumidores reales: `HandleSlab` (hyperdiff `exports.zig:153`,
+      `watch/exports.zig:47,354` — 3 slabs, caps 64/64/256 — y styx) y
+      `errors.ErrorSpace` (hyperdiff `errors.zig:27`; styx `local_file.zig:109`).
+      `TrackingAllocator` tiene UNO (el soak de styx). `ReorderBuffer`,
+      `SubscriberQueue`, `HungWorkerWatchdog` y `log` tienen CERO en los dos
+      repos. Contado con grep sobre las fuentes, excluyendo `zig-pkg/`.
+      Corolario aritmético para la pregunta de si zkit pesa: los 3 slabs suman
+      384 slots × 14 B ≈ 5.4 KB, y `ErrorSpace` es una tabla comptime, 0 B en
+      runtime. Sobre los 188.9 MB medidos de hyperdiff eso es 0.003%.
+    contradice: >-
+      La intuición de que el problema del kit es que le falta código. Medido, es
+      al revés: sobra superficie y faltan consumidores. Mover un módulo de un
+      solo consumidor no es DRY, es una frontera de repo y un pin a cambio de
+      nada.
+    verificadoPor: axon1
+    fecha: '2026-08-28'
+
+  - id: gt/libxev-no-resuelve-por-fetch-y-zig-pkg-es-el-workaround
+    fact: >-
+      Con Zig 0.17.0-dev.1893, la dependencia libxev NO resuelve por fetch desde
+      quic-zig. Con la cache y `zig-pkg/` borrados a cero, el build extrae el
+      archive sin quitarle el directorio raíz de GitHub, no encuentra
+      `build.zig.zon` y resuelve el paquete como `N-V-__8AAE…` → hash mismatch.
+      El pin funcionaba únicamente porque su árbol extraído está commiteado en
+      `zig-pkg/` (88 ficheros trackeados). O sea que `zig-pkg/` en quic-zig NO
+      es cache commiteada por error: es el workaround, y hay que re-vendorizarlo
+      A MANO en cada bump del pin. hyperdiff, en cambio, lo tiene gitignorado
+      (`.gitignore:50`) y su dep zkit SÍ resuelve por fetch — probado en cache
+      limpia, EXIT=0.
+    contradice: >-
+      Dos hipótesis de axon1 sobre la causa, ambas falsificadas con control y una
+      de ellas pusheada y revertida (libxev `c1e223b`): el doble-anidado del
+      tarball cacheado sale IGUAL en zkit, que sí resuelve — no es señal; y
+      `.paths = .{""}` tampoco es la causa, con lista explícita falla igual.
+      Causa raíz SIN DETERMINAR. No re-proponer ninguna de las dos sin control.
+    verificadoPor: axon1
+    fecha: '2026-08-28'
+
+  - id: gt/ipc-tiene-consumidor-fuera-del-programa
+    fact: >-
+      waxin reporta (2026-08-28, madrugada) que ya tiene un consumidor en OTRO
+      proyecto suyo que necesita `ipc` cuanto antes. El proyecto no está nombrado
+      todavía, así que el hecho está REPORTADO, no verificado por axon1.
+      Si se confirma, `cand/ipc-wakeup` pasa de mudanza (1 consumidor) a librería
+      (hyperdiff + ese proyecto), y el módulo deja de depender de la §5.
+      La pieza a mover existe y funciona: `hyperdiff/core/zig/src/watch/ipc.zig`,
+      151 líneas, `WakeupPipe` — es MIGRACIÓN, no diseño desde cero.
+      Nota técnica para no confundir piezas: el `backpressure_waker` de styx es
+      un condvar (despierta un hilo bloqueado); esto es un fd que se mete en un
+      event loop externo. No son la misma pieza, así que "styx ya tiene waker"
+      NO responde si styx necesita esto.
+    contradice: >-
+      El veredicto de la auditoría que dejó `ipc` como mudanza con segundo
+      consumidor sin verificar. Es evidencia NUEVA que ataca el motivo del
+      descarte, que es exactamente lo que la regla exige para reabrirlo — no un
+      redescubrimiento.
+    verificadoPor: 'waxin (reportado), pendiente de verificar por axon1'
+    fecha: '2026-08-28'
+
 nodes:
   # ── Track green: dejar los repos compilando contra 1884 ──────────────────
   - id: green/libxev-zon
@@ -994,6 +1062,33 @@ nodes:
       retire/candidate-h.
 
   # ── Track bugs (hyperdiff) ───────────────────────────────────────────────
+  - id: green/libxev-quic-main
+    track: green
+    repo: 'libxev + quic-zig + styx'
+    owner: axon1
+    title: 'La migracion a 0.17 deja de vivir en una rama: main de los dos repos, con guard que si para el build'
+    status: done
+    dod: >-
+      libxev `main` = `c1e223b` (merge de feat/zig-0.17, 5 commits, + guard
+      comptime >= 0.17.0-dev.1893). quic-zig `main` = `d978f2c` (fast-forward de
+      unify/zig-0.17, 9 commits, + zon 1884→1893 + guard + pin de libxev al main
+      del fork con re-vendor de zig-pkg). styx `master` = `ec6d348` (gitlink
+      e33c8b4→d978f2c y .gitmodules deja de seguir feat/zig-0.17, una rama de
+      julio que llevaba meses muerta y a la que el gitlink ni apuntaba).
+      En los dos repos las tres refs quedan sobre el mismo commit, para que nadie
+      vuelva a medir una linea muerta — que es justo el error que se cometio al
+      empezar esta lane.
+      El guard es lo que importa: `minimum_zig_version` del .zon es advisory y el
+      build runner NUNCA lo comprueba (un manifest que declare 0.99.0 compila con
+      cualquier toolchain). El bloque comptime en build.zig es lo unico que falla
+      de verdad. Verificado con control positivo en los dos: exigiendo 0.18.0
+      sale EXIT=1 con el @compileError; restaurado, EXIT=0 y `zig build` limpio.
+    evidence: 'commits libxev c1e223b / quic-zig d978f2c / styx ec6d348'
+    note: >-
+      Ver gt/libxev-no-resuelve-por-fetch-y-zig-pkg-es-el-workaround antes de
+      tocar el pin de libxev otra vez: el re-vendor de zig-pkg es manual y
+      obligatorio.
+
   - id: bugs/matrix-v4
     track: bugs
     repo: hyperdiff
@@ -1661,7 +1756,7 @@ nodes:
   - id: cand/ipc-wakeup
     track: cand
     repo: zkit
-    owner: 'axon unificado'
+    owner: 'axon1 construye; el axon unificado sigue siendo broker de la §5'
     title: 'ipc/ — el modulo fundacional de zkit que nunca se construyo, y hyperdiff tiene uno funcionando'
     status: designed
     dependsOn: [audit/hyperdiff-zkit]
@@ -1670,13 +1765,21 @@ nodes:
       threads — el watcher escribe 1 byte tras empujar al ring, el consumidor
       mete el fd de lectura en su event loop (epoll/kqueue/libuv/Bun) y drena.
       zkit nacio con `ipc/` como modulo fundacional y NUNCA se construyo.
-      Segundo consumidor: SIN VERIFICAR — no asumir que styx lo necesita.
+      Segundo consumidor: waxin reporta (2026-08-28, madrugada) que YA tiene un
+      consumidor en OTRO proyecto suyo que necesita ipc cuanto antes. Proyecto
+      SIN NOMBRAR todavía: hay que nombrarlo y verificarlo antes de contarlo
+      como verificado. Si se confirma, el módulo se justifica solo (hyperdiff +
+      ese proyecto = 2) y deja de depender de styx.
       Arrastra ademas la decision mas vieja sin abrir del programa: la seccion 5
       del doc de concepcion (Swift-nativo vs zkit/ipc por C ABI) debia gatearse
       con un AskUserQuestion a waxin y nunca se hizo. Abrir esa pregunta ANTES
       de escribir codigo.
     evidence: '~/dotfiles/AUDIT-zkit-consumidores.md'
-    blockedBy: 'seccion 5 del doc de concepcion sin brokear con waxin'
+    blockedBy: >-
+      YA NO lo gatea la sección 5. Con un consumidor fuera del programa, la §5
+      (Swift-nativo vs zkit/ipc por C ABI) sólo decide si styx es el TERCER
+      consumidor, no si el módulo existe. Bloqueo real que queda: nombrar y
+      verificar ese consumidor. La §5 sigue siendo del axon unificado.
 
 # ── Evidencia: dónde vive el porqué (NO duplicar aquí) ──────────────────────
 evidence:
