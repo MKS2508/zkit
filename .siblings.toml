@@ -2,13 +2,17 @@
 #
 # `zkit-forge` cerrada y mergeada (a3ed91f): scaffold + rescate de las 4 primitivas,
 # verificado contra 1884 (17/17 steps, 8 binarios de test).
+# `zkit-errors` cerrada y mergeada: ErrorSpace comptime + emisión a TS + guard.
+# Worktree ya limpiado (`siblings ls` → dead). Bajada de lane activa para liberar
+# `src/root.zig` — colisionaba con `ipc-wakeup-pipe` en el check de disjunción.
 
-[lanes.zkit-errors]
-globs   = ["src/errors.zig", "src/root.zig", "docs/design/**"]
+[lanes.ipc-wakeup-pipe]
+globs   = ["src/ipc.zig", "src/root.zig", "build.zig"]
 copy    = []
 install = false
 model   = "minimax"
 base    = "master"
-# El MECANISMO de la taxonomía (lock/zkit-v0-mechanism): ErrorSpace comptime +
-# emisión a TS + guard contra el .ts en disco. NO los 42 códigos de hyperdiff.
-# Diseño ya escrito en docs/design/errors.md — se implementa, no se re-diseña.
+# cand/ipc-wakeup-pipe: portar WakeupPipe (Zig puro, sin C-ABI) desde
+# hyperdiff/core/zig/src/watch/ipc.zig. Solo el lado zkit — el rewiring del
+# build.zig de hyperdiff y el borrado del original son de otra lane, otro
+# repo. Plan ya escrito y verificado en docs/handoffs/PLAN-ipc-wakeup-pipe-zkit.md.
