@@ -1476,7 +1476,35 @@ nodes:
       roto). Mover un subsistema en plena iteracion es imprudente aunque el
       recuento saliera a favor. Extraer DESPUES de que su cola cierre, no antes.
     evidence: '~/dotfiles/AUDIT-zkit-consumidores.md'
-    blockedBy: 'sin segundo consumidor nombrado + cola de trabajo viva en hyperdiff'
+    blockedBy: 'cola de trabajo viva en hyperdiff (I4.x, kqueue, bench de hot-files roto)'
+    revision: >-
+      REVISADO 2026-08-28 tras waxin: «styx para algo va a necesitar watching
+      seguro». Axon1 habia medido solo «¿vigila styx hoy?» (no) y NO habia
+      medido la pregunta que decide: «¿tendria alternativa si lo necesitara?».
+      MEDIDO AHORA, y el resultado favorece a waxin: libxev —que YA es
+      dependencia de styx— NO vigila cambios del filesystem. Cero hits de
+      FSEvent / inotify / EVFILT_VNODE / NOTE_WRITE / ReadDirectoryChanges en
+      todo `libxev/src`. Su directorio `watcher/` son handles de I/O asincrona
+      en el sentido de libev (async, file, process, stream, tcp, timer, udp),
+      NO notificacion de cambios. `file.zig` son operaciones de fichero sobre
+      el thread pool del loop.
+      CONSECUENCIA: si styx crece una necesidad de watching —y para un daemon
+      de media el candidato obvio es el escaneo de biblioteca— NO tiene
+      alternativa en su arbol de dependencias. Tendria que escribir desde cero
+      lo que ya existe: 3414 lineas de FSEvents + kqueue con coalescing,
+      promocion caliente por ranker y re-track de inodo.
+      Hueco actual en styx: NO existe todavia (el unico match del grep de
+      rescan/walkDir/hot-reload fue un comentario sobre «re-scanning bytes» en
+      wt_client.zig, no relacionado).
+      LO QUE NO CAMBIA: no se extrae sin consumidor nombrado y sin que cierre la
+      cola del camino caliente. LO QUE SI CAMBIA: la expectativa deja de ser
+      especulativa, asi que vale la pena NO dejar que platform.zig derive hacia
+      forma hyperdiff-especifica.
+      Y hay una ganga estructural: la cadena de deps es sync -> ipc -> platform.
+      Extraer `sync` (ya decidido por waxin) y `ipc` (cand/ipc-wakeup) deja
+      platform a UN paso de extraible, con coste especulativo CERO — porque los
+      dos primeros se extraen por sus propios meritos. El trabajo ya decidido
+      paga por adelantado el coste de extraccion del watching.
 
   - id: cand/ipc-wakeup
     track: cand
