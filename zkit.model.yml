@@ -1426,6 +1426,58 @@ nodes:
     evidence: '~/dotfiles/AUDIT-zkit-consumidores.md'
     blockedBy: 'audit/styx — paridad de semantica sin verificar'
 
+  - id: cand/errorspace-styx
+    track: cand
+    repo: styx
+    owner: 'axon unificado'
+    title: 'Wirear errors.ErrorSpace en styx — el paso que lo convierte de mudanza en libreria'
+    status: designed
+    dependsOn: [audit/styx]
+    unblockedBy: 'waxin 2026-08-28: «sync + buscarle 2o consumidor [a ErrorSpace]»'
+    dod: >-
+      Hoy `errors.ErrorSpace` tiene UN consumidor (hyperdiff) y por el criterio
+      del track es mudanza, pese a que axon1 lo vendio como el segundo modulo
+      compartido. Es ademas el mecanismo con mejor relacion valor/esfuerzo del
+      catalogo: no ahorra lineas, mata una CLASE de deriva — el oraculo TS se
+      genera desde la declaracion Zig y un gate falla si divergen.
+      El segundo consumidor es concreto y NOMBRADO, no una categoria: styx tiene
+      el mismo problema (codigos de error cruzando una frontera FFI hacia TS).
+      Esa es la diferencia con cand/watching: aqui el consumidor existe y se
+      llama styx; alli es una categoria sin nombre.
+    evidence: '~/dotfiles/AUDIT-zkit-consumidores.md'
+    blockedBy: null
+
+  - id: cand/watching
+    track: cand
+    repo: zkit
+    owner: 'axon unificado'
+    title: 'Vigilancia de ficheros cross-plataforma (FSEvents + kqueue) — el activo mayor, sin consumidor'
+    status: deferred
+    dependsOn: []
+    unblockedBy: null
+    dod: >-
+      `hyperdiff/core/zig/src/watch/platform.zig` (2289) +
+      `platform_kqueue.zig` (1125) = 3414 lineas de watching cross-plataforma:
+      FSEvents en macOS mas camino caliente kqueue con promocion por ranker,
+      re-track de inodo en NOTE_DELETE y auto-demote. Deps: std, sync, ipc.
+      waxin 2026-08-28: «el watching puede servir sobretodo para mas cosas» —
+      y tiene razon en que es el mas reutilizable POR CATEGORIA del catalogo,
+      mas que gitignore (git-especifico) o hot_ranker (con forma de hyperdiff).
+      PERO hoy NO tiene segundo consumidor y el negativo esta verificado: styx
+      no vigila el filesystem — los unicos hits de FSEvents/EVFILT_VNODE en styx
+      estan dentro del libxev VENDORIZADO en zig-pkg/, que es dependencia, no
+      codigo suyo. quic-zig, cero.
+      CONDICION DE DESBLOQUEO, escrita para que se COMPRUEBE y no se rediscuta:
+      en cuanto exista un segundo consumidor NOMBRADO (un proyecto concreto, no
+      una categoria) este pasa a ser el activo mayor del programa y sube a
+      designed. Mientras no lo haya, se queda en hyperdiff.
+      SEGUNDO MOTIVO, independiente del conteo de consumidores: es el CAMINO
+      CALIENTE y tiene cola de trabajo viva (I4.x, kqueue, el bench de hot-files
+      roto). Mover un subsistema en plena iteracion es imprudente aunque el
+      recuento saliera a favor. Extraer DESPUES de que su cola cierre, no antes.
+    evidence: '~/dotfiles/AUDIT-zkit-consumidores.md'
+    blockedBy: 'sin segundo consumidor nombrado + cola de trabajo viva en hyperdiff'
+
   - id: cand/ipc-wakeup
     track: cand
     repo: zkit
