@@ -846,27 +846,38 @@ groundTruth:
     verificadoPor: axon1
     fecha: '2026-08-28'
 
-  - id: gt/libxev-no-resuelve-por-fetch-y-zig-pkg-es-el-workaround
+  - id: gt/libxev-si-resuelve-RETIRADA-mi-conclusion-era-falsa
     fact: >-
-      Con Zig 0.17.0-dev.1893, la dependencia libxev NO resuelve por fetch desde
-      quic-zig. Con la cache y `zig-pkg/` borrados a cero, el build extrae el
-      archive sin quitarle el directorio raíz de GitHub, no encuentra
-      `build.zig.zon` y resuelve el paquete como `N-V-__8AAE…` → hash mismatch.
-      El pin funcionaba únicamente porque su árbol extraído está commiteado en
-      `zig-pkg/` (88 ficheros trackeados). O sea que `zig-pkg/` en quic-zig NO
-      es cache commiteada por error: es el workaround, y hay que re-vendorizarlo
-      A MANO en cada bump del pin. hyperdiff, en cambio, lo tiene gitignorado
-      (`.gitignore:50`) y su dep zkit SÍ resuelve por fetch — probado en cache
-      limpia, EXIT=0.
+      RETIRACION de lo que axon1 escribio horas antes en este mismo fichero
+      (`gt/libxev-no-resuelve-por-fetch-y-zig-pkg-es-el-workaround`). Aquella
+      entrada afirmaba que libxev no resuelve por fetch en 0.17.0-dev.1893 y que
+      `zig-pkg/` trackeado era el workaround que lo sostenia. Las dos mitades son
+      FALSAS.
+      Falsificada en las dos plataformas, con dos instrumentos independientes:
+      · Ubuntu, por el axon unificado, destrackeando `zig-pkg` (89 ficheros,
+        -36.609 lineas, quic-zig cf68ecc) y corriendo el CI. Discriminador:
+        CERO errores de resolucion; los 2 errores del run son el fstat de Linux
+        preexistente, y los jobs son identicos al run anterior.
+      · macOS, por axon1, re-ejecutando el escenario exacto que habia fallado:
+        `zig-pkg` y `.zig-cache` borrados, cache global de libxev purgada,
+        `zig build` → EXIT=0, cero errores.
+      El fallo original (hash `N-V-__`, archive sin strippear la raiz) NO es
+      reproducible en el estado actual. Causa SIN DETERMINAR: fue dependiente de
+      estado, no una propiedad de libxev ni del toolchain. No se inventa una
+      causa nueva para tapar la retirada.
+      Consecuencia operativa: `zig-pkg/` es cache local regenerable, NO una
+      dependencia vendorizada. Destrackearlo fue correcto. NO re-vendorizar en
+      los bumps de pin.
     contradice: >-
-      Dos hipótesis de axon1 sobre la causa, ambas falsificadas con control y una
-      de ellas pusheada y revertida (libxev `c1e223b`): el doble-anidado del
-      tarball cacheado sale IGUAL en zkit, que sí resuelve — no es señal; y
-      `.paths = .{""}` tampoco es la causa, con lista explícita falla igual.
-      Causa raíz SIN DETERMINAR. No re-proponer ninguna de las dos sin control.
-    verificadoPor: axon1
+      A si misma, que es el punto. Tres hipotesis de axon1 sobre esto han caido
+      esta noche: el doble-anidado del tarball (zkit sale igual y resuelve),
+      `.paths = .{""}` (con lista explicita falla igual, commit revertido en
+      libxev c1e223b), y ahora la conclusion de fondo. La leccion que dejo el
+      unificado y que suscribo: lo que lo distinguio no fue medir mejor, fue no
+      estar dentro del problema. Un agente que hereda una conclusion la re-mide;
+      el que la produjo tiende a re-medir solo la prueba.
+    verificadoPor: 'axon unificado (Ubuntu) + axon1 (macOS), instrumentos independientes'
     fecha: '2026-08-28'
-
   - id: gt/ipc-tiene-consumidor-fuera-del-programa
     fact: >-
       waxin reporta (2026-08-28, madrugada) que ya tiene un consumidor en OTRO
