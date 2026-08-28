@@ -3,20 +3,30 @@
 Infraestructura Zig reutilizable cross-project: las piezas que varios repos
 estaban escribiendo por separado, o que sólo existían en uno.
 
-`Zig 0.17.0-dev.1884+841dd0eb8` · repo privado · sin consumidores wireados todavía
+`Zig 0.17.0-dev.1893+78e3b1c73` · repo privado · **consumido en producción por hyperdiff y styx**
 
 ## Estado
 
-**Recién nacido.** Ahora mismo el repo contiene el SSOT del programa y su
-configuración; el código llega con los nodos `zkit/scaffold` y `zkit/rescue`.
+**En uso.** `zkit/scaffold` y `zkit/rescue` están cerrados: el código está aquí y
+`zig build test` pasa. `src/root.zig` exporta 8 símbolos y las primitivas suman
+~1.800 líneas con tests inline.
+
+De esos 8, **dos tienen dos consumidores reales** (`HandleSlab`, `errors.ErrorSpace`),
+uno tiene uno (`TrackingAllocator`, el soak de styx) y cuatro tienen cero **a día de
+hoy** — pero `SubscriberQueue`, `ReorderBuffer`+`SequenceNumber` y `HungWorkerWatchdog`
+no están muertos: son el substrato de un bus pub/sub con snapshot+delta, y su
+consumidor previsto (`consumer-bus`, que absorbe `spire`) existe y está publicado.
+
+Mapa completo con sus tres ejes: `zkit.model.yml` → `lock/mapa-de-consumidores`.
+Qué queda por extraer y a qué coste: `docs/catalogo-infra-extraible.md`.
 
 ## Qué va a contener, y de dónde sale
 
 | Módulo | Origen | Por qué |
 |---|---|---|
 | `errors` | mecanismo nuevo, modelado sobre `hyperdiff/core/zig/src/errors.zig` | Hoy la ABI de errores se mantiene **a mano en 5 tablas paralelas** entre Zig y TS, con un doc-comment que promete "1:1" y nada que lo compruebe. zkit aporta el espacio de códigos genérico y **genera** el `.ts`. Es el análogo Zig de `@mks2508/no-throw`. |
-| `log` | `hyperdiff/core/zig/src/log.zig` | Logging scoped centralizado. styx tiene 44 `std.log.scoped` sueltos en 12 directorios y ningún módulo central. Análogo de `@mks2508/better-logger`. |
-| `handle` | `hyperdiff/core/zig/src/handle_slab.zig` | Pool generacional con handle `u64` opaco que **es** la ABI. Gana al `HandlePool` de styx: free list fija sin alloc tras init, sin `catch {}` que fugue slots en OOM. |
+| `log` | ⚠️ **cero consumidores.** La copia de hyperdiff se **borró** (2026-08-28) por eso mismo, y porque su `std_options` era inerte: sólo se lee del módulo RAÍZ de la compilación. Antes de wirearlo, comprobar que eso no se hereda | Logging scoped centralizado. styx tiene 44 `std.log.scoped` sueltos en 12 directorios y ningún módulo central. Análogo de `@mks2508/better-logger`. |
+| `handle` | portado desde hyperdiff (su copia ya **no existe**: consume ésta) | Pool generacional con handle `u64` opaco que **es** la ABI. Gana al `HandlePool` de styx: free list fija sin alloc tras init, sin `catch {}` que fugue slots en OOM. |
 | `subscriber_queue` | `styx/spikes/candidate-h` | Cola acotada por suscriptor, overflow contract-gated. `std`-only, 11 tests inline. |
 | `reorder_buffer` | `styx/spikes/candidate-h` | Buffer de reordenado acotado con timeout. `std`-only, 15 tests inline. |
 | `watchdog` | `styx/spikes/candidate-h` | Detector de worker colgado: timer con bound + status atómico. `std`-only. |
@@ -31,7 +41,7 @@ la propia gobernanza de styx. Se rescatan antes del `git rm`, no después.
   `event_queue` (SPSC fijo) y `subscriber_queue` (acotada con política) son tres
   disciplinas de concurrencia distintas, no tres copias. Fusionarlas sería
   flexibilidad especulativa.
-- **Los 42 códigos de error concretos de hyperdiff.** Son la ABI de paquetes
+- **Los 49 códigos de error concretos de hyperdiff.** Son la ABI de paquetes
   publicados y en producción; dos copias divergirían. zkit aporta el mecanismo,
   hyperdiff lo instancia — con parity gate, y no en esta pasada.
 - **Abstracción de procesos / PTY.** La auditoría cross-repo dio negativo: tanto

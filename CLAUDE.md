@@ -8,11 +8,30 @@ re-descubras) y el DAG de nodos con su `owner`.
 
 ## Toolchain
 
-`0.17.0-dev.1884+841dd0eb8`, snapshot en `~/.local/zig-master/`. El `zig` del PATH
-puede ser otro — comprueba `zig version` antes de creerte un error de compilación.
+`0.17.0-dev.1893+78e3b1c73`. Es lo que hay en el PATH vía `zv`; volver atrás es
+`zv use <version>`. (El `~/.local/zig-master/` que citaba este doc **ya no existe**
+— si lo ves mencionado en algún sitio, está stale.)
 
-`minimum_zig_version` **no se enforcea**: es metadata declarativa. Leer un `.zon`
-no dice con qué compiler algo compila.
+`minimum_zig_version` del `.zon` **no para ningún build**: el build runner nunca lo
+comprueba, y un manifest que declare `0.99.0` compila con cualquier toolchain. Lo
+único que falla de verdad es un bloque comptime en `build.zig`:
+
+```zig
+comptime {
+    const required = std.SemanticVersion.parse("0.17.0-dev.1893+78e3b1c73") catch unreachable;
+    if (builtin.zig_version.order(required) == .lt) {
+        @compileError("zkit requires Zig >= 0.17.0-dev.1893+78e3b1c73, found " ++
+            builtin.zig_version_string);
+    }
+}
+```
+
+Ojo: `///` no vale sobre un bloque comptime, tiene que ser `//`. Verifícalo siempre
+con control positivo — sube el requisito a `0.18.0`, comprueba que sale `EXIT=1` con
+el `@compileError`, y restaura. Un guard que no has visto fallar no es un guard.
+
+Caso real de por qué importa: `MKS2508/conduit` declara 1893 en su `.zon` y el repo
+se construyó con **0.15.1**. Nada se quejó.
 
 ## Reglas de código
 
@@ -42,11 +61,26 @@ Es un puerto, no un copy-paste:
 3. Si el original tiene un defecto conocido, se arregla **al portarlo** y se
    documenta en el commit. No se hereda por respeto al original.
 
-## Lo que este repo NO hace todavía
+## Consumidores — ESTO CAMBIÓ, no te fíes de docs viejos
 
-**Cero consumidores wireados** (lock de waxin). No añadas dependencias `.zon`
-desde hyperdiff ni desde styx hacia aquí: el camino verde de esos repos no debe
-depender de que zkit exista. El wiring llega después y con parity gate.
+Este doc decía "cero consumidores wireados, no añadas dependencias". **Ya no es
+cierto** y era lo contrario de la realidad:
+
+- **hyperdiff** depende de zkit en su `.zon` (URL+hash) y consume `HandleSlab` en
+  3 slabs más `errors.ErrorSpace`. **En producción.**
+- **styx** consume `HandleSlab`, `ErrorSpace` y `TrackingAllocator`.
+- **conduit** reimplementó `HandleSlab` y `ReorderBuffer` en vez de consumirlos, con
+  un `TODO(sub-import): cuando zkit/ipc/ exista` en su fuente — y su copia no tiene
+  contador de generación, o sea use-after-free por construcción. Va a entrar dentro
+  de styx, que ya linka los buenos.
+- **mks-agentics** entra por lock de waxin. **spire** y **wraith-app** consumirían por
+  C-ABI, no el módulo Zig.
+
+El mapa completo con sus tres ejes está en `zkit.model.yml` → `lock/mapa-de-consumidores`,
+y el catálogo de qué queda por extraer en `docs/catalogo-infra-extraible.md`.
+
+**Prioridad**: waxin lockeó `el trabajo de hacer zkit pasa a ser prioridad CROSS REPO`
+(2026-08-28). Los tres que moldean el diseño por dogfood son agentics, styx y hyperdiff.
 
 ## Commits
 
