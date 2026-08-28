@@ -684,6 +684,69 @@ groundTruth:
       más?". Y si el gate tiene una tercera transcripción a mano de lo que
       compara, esa lista es la que hay que derivar.
 
+  - id: gt/bench-cero-indistinguible-de-verde
+    fact: >-
+      En `hyperdiff/core/bench/run-hot-files.ts`, un escenario que lanza una
+      excepcion se reporta como `"available": false` con TODAS las stats a cero
+      (p50/p95/p99/mean/count = 0, successes = 0). Reproducido 2026-08-28 por
+      axon1: `hot_atomic_save_16x256L` y `cold_baseline_prewarmed_16x256L` tiran
+      con `session.destroy is not a function` — el harness declara su propio
+      `ISessionShape` para no importar el engine y cablea el adapter crudo, que
+      no tiene el `destroy()` del wrapper `HyperdiffSession`. La API del bench se
+      separo del adapter tras la limpieza de API.
+    consequence: >-
+      Un cero de un instrumento roto se lee IDENTICO a un cero legitimo: en un
+      informe pasa por dato, en un gate de regresion pasa por "no hay
+      regresion". Es la cicatriz de "verifica el instrumento antes de registrar
+      un cero" dentro del propio instrumento de medida. Regla derivada: un
+      escenario que revienta debe ser distinguible de uno que midio cero —
+      stats ausentes o exit != 0, nunca ceros.
+
+  - id: gt/i4x-doc-decia-planned-codigo-decia-hecho
+    fact: >-
+      `hyperdiff/docs/hyper-margin-i4x-atomic-save-retrack.md` declara
+      `Status: planned, not started. Owner: TBD` con fecha 2026-04-20. El commit
+      `46fb144` de ESE MISMO DIA implementa el approach A que el doc propone:
+      bloque `NOTE_DELETE -> refreshInode() -> .reopened` en
+      `core/zig/src/watch/platform_kqueue.zig`, con `generation`, `inodeOf()` y
+      7 tests de inode/refresh/delete/recreate. La memoria de axon1 tambien lo
+      daba por pendiente ("Need NOTE_DELETE re-track to unify").
+    consequence: >-
+      Un doc de plan no es estado, y una memoria tampoco. Los dos envejecen sin
+      avisar mientras el codigo avanza. Antes de planificar trabajo sobre un
+      spec viejo: grepear el codigo por la frase de la solucion propuesta. Aqui
+      habria ahorrado una lane entera, y ademas reencuadra el trabajo real —
+      no es "implementar I4.x", es "arreglar el instrumento y averiguar si lo
+      implementado funciona".
+
+  - id: gt/ci-hyperdiff-nunca-corrio-y-fue-error-de-consenso
+    fact: >-
+      El workflow `bench-gate` de hyperdiff tiene CERO runs desde que se creo
+      (12f5896, 2026-04-19). Medido por el axon unificado 2026-08-28 con
+      `gh api .../workflows/263487661/runs` -> total_count 0, y control positivo
+      por nombre y por id contra "Deploy Docs to Pages", que si devuelve filas
+      (31 runs, todas de Pages). Causa: su unico trigger era
+      `pull_request: [master]` y hyperdiff tiene CERO PRs en toda su historia
+      (`gh pr list --state all` vacio). El schedule nocturno se anadio en
+      3e2e463 el 2026-08-27 y su primer cron aun no habia ocurrido.
+      Esto FALSIFICA la afirmacion de axon1 «el CI de hyperdiff si corre pero en
+      modo I0 no bloqueante», que axon2 adopto y que quedo escrita como hecho en
+      el handoff de hyperdiff y en el LAUNCH del unificado.
+    consequence: >-
+      Dos consecuencias, y la segunda es la cara.
+      TECNICA: flipar `BENCH_ENFORCE=true` NO arregla nada — no hay nada que
+      bloquear en el camino que el trabajo toma de verdad (push directo a
+      master). El arreglo es el TRIGGER, no la variable. Y no son "dos
+      enfermedades distintas" en styx y hyperdiff: es LA MISMA —el gate nunca
+      corre— con dos sintomas, styx en rojo visible y hyperdiff en silencio.
+      METODOLOGICA: es la 6a afirmacion falsa de la noche y la topologia de dos
+      axones NO la cazo, porque los dos axones ESTABAN DE ACUERDO. Es un error
+      de CONSENSO, no de frontera. Refuta la lectura comoda de que "la
+      topologia cazaba los fallos": cazaba los desacuerdos. Un verificador
+      nuevo sin el contexto compartido si lo caza — y ese es el argumento real
+      a favor de la lane verificadora independiente por afirmacion
+      load-bearing, mas fuerte que el que axon1 dio.
+
 # ── NODOS DEL PROGRAMA ──────────────────────────────────────────────────────
 nodes:
   # ── Track green: dejar los repos compilando contra 1884 ──────────────────
@@ -1272,6 +1335,95 @@ nodes:
       prohíbe la disciplina de código. Ver gt/styx-logging-already-consistent para el
       hallazgo real que sí vale la pena conservar. `docs/handoffs/LAUNCH-zig-forge.md`
       (rama styx `docs/log-convention-handoff`) se borra, quedó obsoleto.
+
+  # -- Track audit: encargo de waxin 2026-08-28 -----------------------------
+  - id: audit/hyperdiff-zkit
+    track: audit
+    repo: zkit
+    owner: axon1
+    title: 'Auditoria seria de hyperdiff + zkit: candidatos de extraccion y superficie no consumida'
+    status: in_progress
+    unblockedBy: 'waxin 2026-08-28: «hemos construido algo base guapo, pero no llevado a donde queriamos zkit ni los consumidores»'
+    dependsOn: []
+    dod: >-
+      Tres preguntas contestadas CON MEDIDA, no con opinion:
+      (1) candidatos de extraccion en hyperdiff — infra generica con >=2
+      consumidores reales, o 1 mas una segunda necesidad demostrada;
+      (2) superficie no consumida de zkit — por cada modulo aparcado, si hay
+      consumidor real y, POR SEPARADO, si es consumible siquiera (log.zig es el
+      contraejemplo: su std_options es inerte, promocionarlo habria promocionado
+      una promesa falsa);
+      (3) cuenta de mudanzas — cuantos modulos quedan con exactamente 1
+      consumidor tras el wiring pendiente. Ese numero dice si zkit es libreria o
+      traslado.
+      Instrumento obligatorio: grepear EL PROBLEMA, no la solucion. Buscar
+      `sync.zig` no encuentra nada; buscar `pthread_mutex_t` y `clock_gettime`
+      encuentra el mismo dolor resuelto dos veces.
+    evidence: '~/dotfiles/AUDIT-zkit-consumidores.md'
+    blockedBy: null
+
+  - id: audit/styx
+    track: audit
+    repo: styx
+    owner: axon2
+    title: 'Auditoria seria de styx: candidatos de extraccion y semantica real de sus primitivas'
+    status: pending
+    dependsOn: []
+    dod: >-
+      Mismas tres preguntas que audit/hyperdiff-zkit, sobre styx. Y una cuarta
+      que solo puede contestar el dueno de styx: VERIFICAR que los usos de
+      concurrencia y reloj de styx quieren la MISMA semantica que el sync.zig de
+      hyperdiff (mutex bloqueante sobre pthread libc) y no una propia.
+      `native/zig/media-core/sync/backpressure_waker.zig` es el sospechoso.
+      Un candidato con 2 consumidores que en realidad necesitan cosas distintas
+      es PEOR que dos copias — esa verificacion es el gate de cand/sync-primitives.
+    evidence: '~/dotfiles/AUDIT-zkit-consumidores.md'
+    blockedBy: null
+
+  # -- Track cand: candidatos de extraccion medidos, sin ejecutar ------------
+  - id: cand/sync-primitives
+    track: cand
+    repo: zkit
+    owner: 'axon unificado'
+    title: 'Extraer primitivas de OS (relojes + Mutex/Condition sobre pthread + fs) a zkit'
+    status: designed
+    dependsOn: [audit/hyperdiff-zkit, audit/styx]
+    dod: >-
+      NO ejecutar hasta que audit/styx confirme paridad de semantica.
+      Origen: `hyperdiff/core/zig/src/watch/sync.zig`, 321 lineas, 12
+      importadores — el modulo interno mas importado de hyperdiff. Existe porque
+      std se llevo esas primitivas detras de la interfaz `Io` en 0.16->master y
+      una libreria FFI con sus propios threads no tiene un `Io` que pasarle ni
+      puede crecerlo (C ABI pineado). Tiene rama wasm32-wasi.
+      Segundo consumidor MEDIDO en styx/native/zig/media-core: 18
+      pthread_mutex_lock, 17 unlock, 14 pthread_mutex_t, 8 Thread.Mutex, 1
+      nanoTimestamp, 1 clock_gettime, repartidos por cache/*, observability/ y
+      sync/. Misma migracion de std, dos soluciones independientes.
+      Es el unico candidato conocido de la fila >=2 consumidores, o sea el unico
+      que no seria mudanza. Efecto lateral: cierra la inconsistencia interna de
+      styx (Thread.Mutex mezclado con pthread_mutex_t crudo).
+    evidence: '~/dotfiles/AUDIT-zkit-consumidores.md'
+    blockedBy: 'audit/styx — paridad de semantica sin verificar'
+
+  - id: cand/ipc-wakeup
+    track: cand
+    repo: zkit
+    owner: 'axon unificado'
+    title: 'ipc/ — el modulo fundacional de zkit que nunca se construyo, y hyperdiff tiene uno funcionando'
+    status: designed
+    dependsOn: [audit/hyperdiff-zkit]
+    dod: >-
+      `hyperdiff/core/zig/src/watch/ipc.zig`, 151 lineas: wakeup por pipe entre
+      threads — el watcher escribe 1 byte tras empujar al ring, el consumidor
+      mete el fd de lectura en su event loop (epoll/kqueue/libuv/Bun) y drena.
+      zkit nacio con `ipc/` como modulo fundacional y NUNCA se construyo.
+      Segundo consumidor: SIN VERIFICAR — no asumir que styx lo necesita.
+      Arrastra ademas la decision mas vieja sin abrir del programa: la seccion 5
+      del doc de concepcion (Swift-nativo vs zkit/ipc por C ABI) debia gatearse
+      con un AskUserQuestion a waxin y nunca se hizo. Abrir esa pregunta ANTES
+      de escribir codigo.
+    evidence: '~/dotfiles/AUDIT-zkit-consumidores.md'
+    blockedBy: 'seccion 5 del doc de concepcion sin brokear con waxin'
 
 # ── Evidencia: dónde vive el porqué (NO duplicar aquí) ──────────────────────
 evidence:
