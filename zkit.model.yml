@@ -154,6 +154,46 @@ statusVocabulary: [pending, in_progress, reported, done, blocked, designed, defe
 
 # ── LOCKS de waxin. No re-abrir sin evidencia nueva. ────────────────────────
 locks:
+  - id: lock/mapa-de-consumidores
+    date: '2026-08-28'
+    quote: >-
+      'agentics, conduit, consumerbus (migrado a el nuevo spire) con el ipc,
+      hyperdiff, styx consumiran seguramente tambien spire ambos y conduit
+      formara parte de styx'
+    decision: >-
+      El mapa de consumidores queda lockeado con TRES EJES que NO deben
+      mezclarse, porque mezclarlos es lo que produce la falsa disyuntiva
+      "zkit o spire".
+
+      EJE 1 — QUE se consume. Son DOS capas distintas, no competidoras:
+        · substrato nativo (zkit): primitivas Zig, se LINKAN.
+        · el wire (spire, que absorbe consumer-bus): contrato NDJSON, se HABLA.
+        · `zkit/ipc` es el PUENTE entre las dos: Zig hablando el wire.
+        Corolario: hyperdiff y styx consumiran las DOS cosas, y eso no es
+        redundancia — es una capa nativa y una de contrato.
+
+      EJE 2 — COMO se consume:
+        · Zig directo, linkando el modulo: hyperdiff, styx, conduit.
+        · Por C-ABI / FFI: los TypeScript (spire, agentics) y Swift (wraith-app).
+
+      EJE 3 — ESTADO de la relacion:
+        · en produccion: hyperdiff, styx.
+        · declarado en codigo y esperando: conduit (el TODO de sdk.zig:13).
+        · lockeado por waxin, aun sin cablear: mks-agentics.
+        · sin decidir: wraith-app (es el sujeto de la §5).
+
+      MOVIMIENTOS ESTRUCTURALES lockeados en esta misma decision:
+        · consumer-bus se MIGRA dentro del nuevo spire (deja de ser consumidor
+          separado; hasta la migracion sigue siendo el dueno del contrato).
+        · conduit pasa a FORMAR PARTE de styx.
+        Consecuencia directa y accionable de lo segundo: cuando conduit entre en
+        styx, su HandleSlab duplicado SIN contador de generacion aterriza dentro
+        de un repo que ya linka el bueno. Dos HandleSlab en un repo y uno con
+        use-after-free por construccion. Eso es una funcion forzante, no una
+        molestia estetica: la absorcion es el momento natural de matar la copia.
+
+      LOS TRES QUE MOLDEAN el diseno por dogfood (lock previo, se reafirma):
+      mks-agentics, styx, hyperdiff. El resto consume.
   - id: lock/zkit-prioridad-cross-repo
     date: '2026-08-28'
     quote: 'el trabajo de hacer zkit pasa a ser prioridad CROSS REPO'
@@ -962,6 +1002,30 @@ groundTruth:
       repos. Con este mapa, varios modulos que salieron "1 consumidor = mudanza"
       o "cero = archivo" tienen segundo consumidor sin mover una linea.
     verificadoPor: axon1
+    fecha: '2026-08-28'
+
+  - id: gt/freeze-del-wire-es-precondicion-del-port-a-c-abi
+    fact: >-
+      Devuelto por la sesion de mks-agentics (COORD
+      `~/dotfiles/COORD-agentics-a-axon1-zkit-recibido.md`, commit 2884fc1) como
+      condicion PRE-Zig, y lo acepto: el freeze del wire mas un parity gate o
+      codegen tiene que existir ANTES del port a C-ABI. Motivo dado: hoy el
+      contrato driftaria en silencio — cero `verify:wire`, y el propio DESIGN.md
+      del contrato esta stale sobre su transport (mismo hallazgo que yo verifique
+      por mi lado: declara el unix-socket como stub `not_implemented` y hay 585
+      lineas implementadas).
+      El wire vive en `@mks2508/consumer-bus`, y su freeze gatea a su vez con la
+      migracion arktype→TypeBox (0.2.0).
+      RESTRICCION EXPLICITA que asumo: este freeze NO se lockea desde zkit en
+      solitario. El dueno del contrato (consumer-bus, y despues spire cuando lo
+      absorba) tiene que sellar la version. Es dependencia cruzada, va al
+      interview compartido de manana como item de los dos.
+    contradice: >-
+      Cualquier plan que arranque `cand/ipc-wakeup` escribiendo el parser del
+      protocolo antes de que la version del contrato este sellada. Portar un
+      contrato que se mueve es garantizar drift silencioso entre lenguajes, que
+      es exactamente el fallo que el puente pretende evitar.
+    verificadoPor: 'sesion mks-agentics (reportado), transport stale verificado por axon1'
     fecha: '2026-08-28'
 
 nodes:
@@ -1915,6 +1979,13 @@ nodes:
       (semanas -> B gana facil; meses -> A es lo pragmatico).
       Sigue siendo un AskUserQuestion pendiente con waxin. Owner del broker: por
       decidir — no es del axon unificado, que es de styx.
+      SEGUNDO GATE, devuelto por la sesion de mks-agentics y aceptado: el freeze
+      del wire mas parity gate o codegen es condicion PRE-port a C-ABI, y no se
+      lockea desde zkit en solitario — lo sella el dueno del contrato. Ver
+      gt/freeze-del-wire-es-precondicion-del-port-a-c-abi.
+      TERCER dato, este a favor y con prisa: conduit ya duplico HandleSlab y
+      ReorderBuffer esperando a este modulo, y va a entrar dentro de styx, que ya
+      linka los buenos.
 
 # ── Evidencia: dónde vive el porqué (NO duplicar aquí) ──────────────────────
 evidence:
