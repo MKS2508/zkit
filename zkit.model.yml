@@ -838,6 +838,33 @@ groundTruth:
     verificadoPor: 'waxin (reportado), pendiente de verificar por axon1'
     fecha: '2026-08-28'
 
+  - id: gt/seis-mil-lineas-ya-desacopladas-en-hyperdiff
+    fact: >-
+      Medido el 2026-08-28: hyperdiff tiene 5.993 lineas de infraestructura que
+      YA no importan nada del dominio diff. Se midio el conjunto completo de
+      `@import` de cada modulo y si declara `extern struct` con forma de dominio.
+      Control corrido: grep de imports relativos sobre los 9 modulos devuelve
+      CERO, no hay acoplamiento oculto.
+      Tier 1, se mueve tal cual (5.156 lineas): sync 321, ipc 151, hot_ranker
+      372, blob_cache 273, patch_ring 625 (anillo de BYTES; RecordHeader es su
+      propio formato), platform_kqueue 1125, platform 2289 (sus 2 externs son ABI
+      de Apple, no dominio).
+      Tier 2, hay que parametrizar el payload (837 lineas): event_queue 542
+      (CChange, CStatusBatch) y patch_queue 295 (CWatchPatchEvent, CWatchPatchBatch).
+      El grafo confirma en codigo el orden ya lockeado: sync e ipc son HOJAS
+      (solo std/builtin) y se justifican solos; platform depende de los dos.
+      Catalogo completo en `zkit/docs/catalogo-infra-extraible.md`.
+    contradice: >-
+      Nada de la auditoria de consumidores, que sigue en pie: mover codigo de un
+      solo consumidor sigue siendo mudanza. Lo que corrige es el ALCANCE de la
+      pregunta — la auditoria midio "quien lo usa hoy" y nunca "que hay ya
+      construido y desacoplado que un consumidor nuevo podria usar". Con un
+      tercer repo entrando, media tabla pasa de 1 consumidor a 2 sin mover una
+      linea de codigo. La intuicion de waxin ("veo muchisimo codigo") estaba
+      medida y era correcta.
+    verificadoPor: axon1
+    fecha: '2026-08-28'
+
 nodes:
   # ── Track green: dejar los repos compilando contra 1884 ──────────────────
   - id: green/libxev-zon
