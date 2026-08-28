@@ -2060,8 +2060,24 @@ nodes:
     repo: zkit
     owner: axon-zkit
     title: 'WakeupPipe (Zig puro, sin C-ABI) — migrar de hyperdiff a zkit'
-    status: designed
+    status: in_progress
     dependsOn: [audit/hyperdiff-zkit]
+    evidence: >-
+      LADO ZKIT CERRADO Y VERIFICADO (2026-08-28): sibling `ipc-wakeup-pipe` portó
+      `src/ipc.zig` (155 líneas, byte-fiel — único cambio es el doc-comment que nombraba
+      símbolos C-ABI ajenos de hyperdiff), re-export flat en `root.zig`, entrada en
+      `standalone_tests`. Merge `7a02cf9` a master de zkit (local, sin push). Verificado
+      independientemente por axon-zkit, no solo el report del sibling: diff fuente contra
+      el original de hyperdiff, `zig build test` 21/21 steps corrido 3 veces (worktree,
+      post-merge en main checkout, re-confirmado), probe de re-export separado también
+      verde. NO está `done` por `gt/extraer-sin-sustituir`: el original en
+      `hyperdiff/core/zig/src/watch/ipc.zig` sigue vivo, el borrado + rewiring de su
+      `build.zig` es la lane hermana (plan en `~/dotfiles/PLAN-ipc-wakeup-pipe-hyperdiff.md`,
+      axon1, worktree `../hyperdiff-ipc-extract` desde `master` LOCAL de hyperdiff — ver
+      `COORD-hyperdiff-reparto-worktree-para-ipc.md`). PENDIENTE explícito: el pin de zkit
+      en `hyperdiff/core/zig/build.zig.zon` se resuelve por URL+hash de GitHub — el commit
+      `7a02cf9` no está pusheado, así que `zig fetch` fallaría hoy. Push de zkit requiere OK
+      explícito de waxin antes de que la lane hermana pueda cerrar M1 de su plan.
     unblockedBy: >-
       Split de cand/ipc-wakeup, 2026-08-28, waxin en vivo. El doc de jarvis de la sesión
       agentics (§B) ya identificaba que el nodo original conflacionaba dos cosas: esta
