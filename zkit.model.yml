@@ -1342,7 +1342,7 @@ nodes:
     repo: zkit
     owner: axon1
     title: 'Auditoria seria de hyperdiff + zkit: candidatos de extraccion y superficie no consumida'
-    status: in_progress
+    status: reported
     unblockedBy: 'waxin 2026-08-28: «hemos construido algo base guapo, pero no llevado a donde queriamos zkit ni los consumidores»'
     dependsOn: []
     dod: >-
@@ -1361,6 +1361,27 @@ nodes:
       encuentra el mismo dolor resuelto dos veces.
     evidence: '~/dotfiles/AUDIT-zkit-consumidores.md'
     blockedBy: null
+    closedAt: '2026-08-28, ~/dotfiles/AUDIT-zkit-consumidores.md seccion RESULTADOS (d0d5e1d)'
+    finding: >-
+      CONTRADICE LA PREMISA DEL ENCARGO. waxin pregunto si faltan piezas; la
+      medida dice que la restriccion activa son los CONSUMIDORES, no las piezas.
+      zkit: de 8 modulos, UNO es libreria — `HandleSlab`, 2 consumidores reales
+      verificados (hyperdiff exports.zig + watch/exports.zig; styx
+      media-core/cache/tiered_cache.zig:46 BufferSlab, post-m5 0eab914).
+      `errors.ErrorSpace` tiene UN consumidor: por el criterio propio es mudanza
+      igual que el resto, pese a que axon1 lo vendio como el segundo compartido.
+      `log.zig` es categoria aparte: no esta sin consumir porque nadie lo
+      necesite sino porque NO FUNCIONA (std_options inerte) y nadie lo ejecuto.
+      hyperdiff: ~5900 lineas de infra generica bien factorizada lista para
+      extraer, y exactamente UNA con segundo consumidor (`watch/sync.zig`, 321
+      lineas, hoja del grafo de deps — ignore, attributes y platform se apoyan
+      en el). Negativos verificados: styx NO vigila el filesystem (los unicos
+      hits de FSEvents/EVFILT_VNODE estan en el libxev vendorizado de zig-pkg/,
+      que es dependencia, no codigo suyo), luego las 3414 lineas de
+      platform*.zig NO tienen segundo consumidor; quic-zig cero hits de sync.
+      REGLA DERIVADA: meter piezas sin segundo consumidor no construye una
+      libreria, construye un almacen — y repetirlo con las 5900 de hyperdiff
+      multiplicaria por cuatro el problema de las 4 rescatadas del spike.
 
   - id: audit/styx
     track: audit
