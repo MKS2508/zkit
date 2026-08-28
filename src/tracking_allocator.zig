@@ -68,8 +68,8 @@ pub const TrackingAllocator = struct {
         const result = self.inner.vtable.remap(self.inner.ptr, memory, alignment, new_len, ret_addr);
         if (result) |new_ptr| {
             if (new_ptr != memory.ptr) {
-                // Relocated: the old memory is gone, so we reduce freed by old_len
-                // and the new allocation is tracked via the new pointer.
+                // Relocated: the old block was released, so it counts as freed,
+                // and the new block counts as a fresh allocation.
                 _ = self.freed.fetchAdd(old_len, .monotonic);
                 _ = self.allocated.fetchAdd(new_len, .monotonic);
             } else {
@@ -90,3 +90,45 @@ pub const TrackingAllocator = struct {
         _ = self.freed.fetchAdd(memory.len, .monotonic);
     }
 };
+
+test "TrackingAllocator: el contaje cuadra en shrink, grow y remap" {
+    // Fija el invariante `allocated == freed` al final de un ciclo completo.
+    // Se reportó desde styx un under/overflow de `live_bytes` cuando el
+    // allocator interno redondea al alza en un shrink; no reproduce sobre este
+    // código, y este test lo deja anclado para que se note si alguna vez pasa.
+    // Los allocators se recorren a propósito porque unos aceptan el shrink en
+    // sitio y otros lo rechazan — los dos caminos de `resizeFn` importan.
+    const backings = [_]std.mem.Allocator{
+        std.heap.page_allocator,
+        std.testing.allocator,
+    };
+    for (backings) |inner| {
+        var ta = TrackingAllocator.init(inner);
+        const a = ta.allocator();
+
+        // Shrink (resizeFn puede devolver true o false según el allocator).
+        var buf = try a.alloc(u8, 3 * 4096);
+        if (a.resize(buf, 4096)) buf = buf[0..4096];
+        a.free(buf);
+        try std.testing.expectEqual(@as(usize, 0), ta.liveBytes());
+
+        // Grow con reubicación probable (remapFn, rama relocated).
+        var small = try a.alloc(u8, 64);
+        if (a.remap(small, 1 << 16)) |moved| small = moved;
+        a.free(small);
+        try std.testing.expectEqual(@as(usize, 0), ta.liveBytes());
+
+        // Crecimiento por appends, que es el patrón real de un ArrayList.
+        var list = std.array_list.AlignedManaged(u64, null).init(a);
+        var i: usize = 0;
+        while (i < 2000) : (i += 1) try list.append(i);
+        const owned = try list.toOwnedSlice();
+        a.free(owned);
+
+        try std.testing.expectEqual(@as(usize, 0), ta.liveBytes());
+        try std.testing.expectEqual(
+            ta.allocated.load(.monotonic),
+            ta.freed.load(.monotonic),
+        );
+    }
+}
