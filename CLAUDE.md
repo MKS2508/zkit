@@ -1,5 +1,42 @@
 # CLAUDE.md — zkit
 
+## 🔴 2026-09-03 — hay un SEGUNDO ledger, y contradice a este
+
+`zkit.model.yml` es la autoridad **de este programa**. Pero **`mesh/roadmap.spec.yml`**
+(D-001..D-065, tocado hoy) es otra autoridad viva, y **ninguna de las dos sabe que la otra
+existe**. Descubierto en una auditoría cross-repo.
+
+El choque concreto está en el lock **`mapa-de-consumidores`** (`zkit.model.yml:166-205`,
+2026-08-28), que declara dos movimientos estructurales:
+
+- **"conduit pasa a FORMAR PARTE de styx"** (`:197`)
+- **"consumer-bus se MIGRA dentro del nuevo spire"** (`:195`)
+
+…mientras `mesh` planificaba **absorber el protocolo de chunks de conduit** (D-050/D-053).
+Esa cláusula de mecanismo quedó **reabierta como D-065** y la lane `mesh-transfer` está
+**GATED** precisamente por esto.
+
+**Antes de ejecutar cualquier nodo de este modelo que toque conduit, spire o consumer-bus,
+reconcilia los dos ficheros.**
+
+### Lo que la auditoría confirma de este repo (buenas noticias)
+
+`zkit` **es** el núcleo real: 2.360 LoC, 73 tests (21/21 steps verdes), cero dependencias,
+guard de versión comptime que sí funciona. Lo que **no** existe es que alguien lo consuma:
+las cinco aristas que `conduit/README` declara hacia zkit/quic-zig/libxev son **prosa** — sus
+tres `build.zig.zon` tienen `.dependencies` vacío.
+
+Y lo que `CLAUDE.md:72-75` de este repo ya decía sobre la duplicación de conduit **está
+confirmado y es peor**: además del `HandleSlab` sin generación, `conduit/packages/sdk-zig/src/sdk.zig:131-136`
+**no compila y nunca ha compilado** (`try` dentro de una fn que devuelve `@This()`). Sus
+tests dan 4/4 PASS porque el análisis perezoso de Zig nunca toca ese cuerpo.
+
+📍 **Mapa completo**:
+`/Volumes/KODAK1TB/REPOS y PROYECTOS/nodejs-bun/mesh/docs/research/2026-09-03-mapa-cross-repo.md`
+
+⚠️ **`styx` y `hyperdiff` NO se auditaron** — todo lo que el mapa dice de ellos viene del
+`dossier-consumidores` de este repo, o sea testimonio de segunda mano.
+
 ## Lo primero
 
 `zkit.model.yml` es la **autoridad** del programa. Léelo antes de tocar nada: lleva
