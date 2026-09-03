@@ -2739,6 +2739,7 @@ nodes:
     note: 'Requiere push de axon master (marketplace axon = GitHub mks2508/axon) + claude plugin update axon@axon en los 4 config dirs. Citado por TR-plugin-hooks-guards SS2.4.'
 
   - id: axon/workflow-output-spec
+    docs: [axon/docs/specs/spec-workflow-output.md, axon/docs/task-requests/TR-workflow-output-spec-B.md, axon/docs/research/2026-09-03-workflow-output-corpus.md]
     track: cross
     repo: axon
     owner: axon-mesh
@@ -2752,7 +2753,10 @@ nodes:
       axon-mesh en axon be7ac72 tras verificar self-test 7/7 y regeneracion del wf de
       referencia. Testigo pasado a axon-mesh el 2026-09-03. Paso B en curso: mas
       test_cases con shapes de workflows reales, finalPlan shape explicito, link
-      desde la skill axon-artifacts.
+      desde la skill axon-artifacts. Corpus medido (b2478fb): 92 workflows, 422
+      returns, 81 % unknown con 0.1.1 → B amplia el catalogo de tipos (verify,
+      executor, reader relajado) con objetivo unknownPct <= 15 % medido por
+      scripts/workflow-corpus-stats.ts; TR-B despachado 2026-09-03.
 
 
 
