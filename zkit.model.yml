@@ -2736,6 +2736,17 @@ nodes:
     dod: 'Falsable: claude plugin list muestra axon@axon 0.3.0; settings.json sin la entrada del hook viejo; un Write a /tmp/x-report.md en sesion real sigue aterrizando en .tmp/reports/ (solo por el plugin); dotfiles sin claude/hooks/.'
     note: 'Requiere push de axon master (marketplace axon = GitHub mks2508/axon) + claude plugin update axon@axon en los 4 config dirs. Citado por TR-plugin-hooks-guards SS2.4.'
 
+  - id: axon/workflow-output-spec
+    track: cross
+    repo: axon
+    owner: waxin
+    title: 'Spec del output de Workflow: reglas de unwrap + tipos canonicos (docs/specs/spec-workflow-output.md), schema declarativo (scripts/specs/workflow-output.spec.json) y parser reusable (scripts/workflow-synthesize.ts)'
+    status: in_progress
+    provisional: true
+    dependsOn: []
+    dod: 'Los 3 artefactos existen; scripts/workflow-synthesize.ts aplicado al workflow actual produce output equivalente (comparacion pegada); pendiente anotado en plugin/agents/axon-v2.md.'
+    note: 'Diseno y ejecucion de waxin en paralelo (sesion propia sobre axon, 2026-09-03). Registrado por axon-mesh para que exista fuera de axon-v2.md; waxin lo cierra.'
+
 
 
 evidence:
