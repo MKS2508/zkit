@@ -2726,6 +2726,16 @@ nodes:
     dod: 'Sin TR escrito aun (XR-002 §1.3, axon-coordination SKILL.md §2.2). Falsable cuando exista: ningun agente global lista SpawnPeer; un wraith se lanza desde axon y recibe un mensaje.'
     note: 'Hasta que cierre, el canal de coordinacion es fichero + tmux (lock waxin 27-ago). Referenciado por TR-program-coordination §2.6.'
 
+  - id: axon/retire-dotfiles-hook
+    track: cross
+    repo: dotfiles
+    owner: axon-mesh
+    title: 'Retirar ~/dotfiles/claude/hooks/ (redirect-report-write.mts) y su entrada PreToolUse en ~/.claude/settings.json una vez el plugin axon 0.3.0 este instalado'
+    status: pending
+    dependsOn: [axon/plugin-hooks-guards]
+    dod: 'Falsable: claude plugin list muestra axon@axon 0.3.0; settings.json sin la entrada del hook viejo; un Write a /tmp/x-report.md en sesion real sigue aterrizando en .tmp/reports/ (solo por el plugin); dotfiles sin claude/hooks/.'
+    note: 'Requiere push de axon master (marketplace axon = GitHub mks2508/axon) + claude plugin update axon@axon en los 4 config dirs. Citado por TR-plugin-hooks-guards SS2.4.'
+
 
 
 evidence:
