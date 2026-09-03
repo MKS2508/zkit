@@ -65,6 +65,13 @@ repos:
     ssot: null
     role: 'raíz de la cadena de pinneo'
 
+  - id: mesh
+    path: '/Volumes/KODAK1TB/REPOS y PROYECTOS/nodejs-bun/mesh'
+    remote: 'MKS2508/mesh (privado)'
+    ssot: 'roadmap.spec.yml (formato pre-axon: phases + decisions; migración a nodes: pendiente)'
+    role: 'consumidor del programa — motor de chunks del core, cliente QUIC por C-ABI, bindings; sexto repo desde 2026-09-03 por lock/mesh-en-el-programa. Sus decisiones de producto se quedan en su ledger.'
+
+
 lanes:
   - id: axon1
     session: hyperdiff
@@ -428,6 +435,89 @@ locks:
       no expulsa lo que ya está: gatea lo que entra.
       mesh es CONSUMIDOR del programa. Si además entra como sexto repo de este ledger es la
       Q1 de la interview cross-repo, que sigue abierta para waxin.
+
+  - id: lock/mesh-en-el-programa
+    date: '2026-09-03'
+    origin: 'interview cross-repo XR-001 draft 2, q1 (tablet). Elegida (a) con flag «míralo tú» + nota; lockeada por axon siguiendo la nota literal. Confirmación de waxin pendiente al leer.'
+    quote: >-
+      waxin (nota de q1): "Mesh sí que entra en el programa porque va a consumir varias
+      cosas de aquí: Spire, los bindings, conduit, etc. […] no hace falta que las 66
+      decisiones se migren todas a un modelo. Solo ajustar los modelos, todos los de cross
+      repo, para indicar que estás siendo en cross repo y ya está. Lo que es de cada uno se
+      queda en el sitio de cada uno pero indicamos que estamos haciendo algo cross repo y
+      sincronizamos axon en los que haga falta […] hasta que no vayamos desbloqueando una y
+      otra, se quedan cross repo hasta que los gates, blockers y demás se vayan liberando."
+    decision: >-
+      mesh entra como SEXTO repo del programa (repos: de este fichero), con el mismo patrón
+      que hyperdiff y styx: aquí viven solo los nodos del programa que tocan a mesh, con
+      puntero a mesh/roadmap.spec.yml; las decisiones de producto de mesh se quedan en su
+      ledger. Un nodo es "del programa" mientras dependa de otro repo o lo bloquee; cuando
+      su gate se libera, deja de serlo. Regla dura derivada: toda decisión de mesh que
+      nombre un repo del programa se registra AQUÍ (lock o nodo) y mesh la cita por id —
+      el choque D-050 ↔ mapa-de-consumidores no se repite.
+
+  - id: lock/conduit-motor-al-core
+    date: '2026-09-03'
+    origin: 'interview XR-001 draft 2, q2. Elegida (c) con flag «míralo tú» + nota; lockeada por axon siguiendo la nota. Confirmación pendiente.'
+    quote: >-
+      waxin (nota de q2): "styx puede o no puede necesitar conduit. mesh sí va a necesitar
+      conduit, cloudreve-mirror sí va a necesitar conduit y este sí va a necesitar el core
+      SDK, quic-zig, zkit […] Ahora que ver dónde lo movemos, si hay que portarlo a zig, lo
+      que sea. No importa rehacer trabajo si es la opción más correcta […] No sé si hay que
+      borrar el código duplicado y tal y ordenar un poco, pero eso sí."
+    decision: >-
+      (1) El motor de chunks se EXTRAE al core como paquete TS publicado (@mks2508/*), con
+      la frontera seal(key: CryptoKey) + ISink { createSession, getSession, putChunk,
+      complete } e integridad sobre ciphertext — reescrito (~120 líneas) usando
+      conduit/apps/cli-bun/src/lib/upload.ts como spec, CON TESTS ANTES de mover nada
+      (hoy el motor no tiene ninguno). Consumidores: el CLI de conduit, mesh (D-065) y
+      cloudreve-mirror. (2) conduit SIGUE como repo: es la casa del CLI y del paquete del
+      motor — "conduit sirve a varios repos" se cumple publicando, no disolviendo. (3) El
+      Zig muerto de conduit (400 LoC, 0 símbolos exportados, OidcClient nunca compiló,
+      HandleSlab sin contador de generación) se BORRA — git lo guarda; el port a Zig, si
+      llega, nace detrás de la misma interfaz cuando exista el cliente C-ABI de quic-zig
+      (mesh D-066). (4) lock/mapa-de-consumidores queda ENMENDADO en su cláusula "conduit
+      formará parte de styx": styx NO es destino de conduit — es consumidor OPCIONAL
+      ("puede o no puede necesitarlo"; hoy 0 hits y 0 ingest en 436 TS); la consecuencia
+      que ese lock derivaba (matar el HandleSlab duplicado) se cumple por (3).
+
+  - id: lock/orden-extraccion-y-cliente-en-paralelo
+    date: '2026-09-03'
+    origin: 'interview XR-001 draft 2, q3 (c), sin flag'
+    decision: >-
+      La extracción de la capa de bindings (zkit/bindings-layer, desde hyperdiff) y la
+      exposición del cliente QUIC por C-ABI (quic-zig, mesh D-066) van EN PARALELO: repos
+      distintos, sin ficheros en común, con la convención C-ABI ya validada en producción
+      por hyperdiff como contrato compartido desde el día 1 (rc u32 · buffer del caller ·
+      payload packed + DataView · handles u64 de HandleSlab). El generador de headers y
+      tablas de zkit se aplica a los qz_* de quic-zig como retrofit mecánico cuando exista.
+
+  - id: lock/repos-del-core-publicos
+    date: '2026-09-03'
+    origin: 'interview XR-001 draft 2, q4 (a), sin flag'
+    decision: >-
+      zkit, quic-zig y libxev se quedan PÚBLICOS (estado verificado en la API de GitHub el
+      2026-09-03). Distribución por lenguaje: Zig por URL+hash (zig fetch --save) sin token
+      en ningún consumidor; TS por npm @mks2508/*. Sustituye a la orden verbal del
+      2026-08-27 "crea el repo privado de zkit" (COORD-zig-toolchain.md:204).
+
+  - id: lock/stack-quic-es-quic-zig
+    date: '2026-09-03'
+    origin: 'interview XR-001 draft 2, q5 (a) + nota, sin flag'
+    quote: >-
+      waxin (nota de q5): "Efectivamente es quic-zig, pero si vemos que se atasca o lo que
+      sea, o queremos tener algo funcional antes, metemos iroh. Pero iremos en el orden
+      happy path […] Es usar quic-zig, que es el que ya vamos a estar usando en más
+      implementaciones […] Tirar de zkit, libxev, la familia que estamos construyendo de
+      Zig."
+    decision: >-
+      El stack QUIC de toda la familia, mesh incluido, es quic-zig (fork propio) sobre
+      libxev, con zkit debajo. Es la premisa que sostiene mesh D-051 (corregida) y D-066,
+      que pasan de PROVISIONAL a confirmadas. Cláusula de fallback, AMPLIADA respecto a la
+      condición de reapertura de D-051: iroh entra detrás del adaptador Transport de D-046
+      no solo si QNT se atasca, sino también si se quiere "algo funcional antes" — es una
+      decisión de calendario que toma waxin, no un fallo técnico.
+
 
 # axon-core 0.6.x exige la clave `decisions:` (Decision[] con id+status). En este ledger las
 # decisiones de waxin viven en `locks:` con su propio vocabulario; esta lista queda vacía a
