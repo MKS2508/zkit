@@ -2617,7 +2617,9 @@ nodes:
     repo: axon
     owner: axon-mesh
     title: 'Guards de Claude Code en el plugin axon (0.3.0): redirect-report-write, deny-credential-read, require-report, enforce-read-only'
-    status: in_progress
+    status: done
+    completedDate: '2026-09-03'
+    evidence: 'sib/plugin-hooks-guards fafc3de..31ecc35 (8 commits), merge en axon master (sin push). Verificado por axon-mesh: bun test plugin/hooks 50/50 + smoke rc=0; 22 specimens propios rojo/verde a nivel proceso; en vivo con claude -p --plugin-dir: deny-credential-read deniega cat de un .key (contra el worktree con espacios tras fix2) y require-report bloquea SubagentStop de un subagente real (receipt en su transcript). Pendiente: claude plugin update (marketplace GitHub, exige push) y retirar el hook de dotfiles.'
     dependsOn: []
     dod: 'Puntero: axon/docs/task-requests/TR-plugin-hooks-guards.md §3. Falsable: rama roja y verde por hook con specimens de stdin JSON reales, rc por redirect; prueba con subagente real; verificado en vivo con claude --plugin-dir por el maestro.'
     note: 'D1/D5 de orchestration-commands.md §8. Al verificarse en vivo, el maestro retira ~/dotfiles/claude/hooks/ y su entrada en ~/.claude/settings.json.'
