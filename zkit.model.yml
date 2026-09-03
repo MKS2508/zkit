@@ -2705,6 +2705,16 @@ nodes:
     dod: 'Sin TR escrito aún (orchestration-commands.md §5). Falsable cuando exista: sustituye a los comandos fantasma markers/prior-art citados en axon-v2.md sin implementación.'
     note: 'orchestration-commands.md §3.4 (tabla completa de los 8 comandos).'
 
+  - id: axon/project-init
+    track: cross
+    repo: axon
+    owner: axon-mesh
+    title: 'axon init + /axon:init — alta de proyecto (nuevo | existente | entra en ledger cross-repo): CLI mecanico idempotente + command con la interview'
+    status: in_progress
+    dependsOn: [axon/dispatch-contract-file]
+    dod: 'Falsable: en dir vacio, axon init --kind new --name demo rc=0 y axon status --strict rc=0 contra el modelo escrito; dos runs seguidos no cambian un byte; config con keys ajenas se preserva; config corrupto rc!=0 y fichero intacto (hash); --ledger + --standalone rc!=0; --dry-run no toca disco. Command /axon:init declarado en plugin.json, <=3 AskUserQuestion con previews.'
+    note: 'Pedido por waxin 2026-09-03: "que me pregunte un par de cosas con AskUserQuestion y fuera". Hueco medido el mismo dia: plugin/commands/ vacio, axon init no existe en el CLI, packages/mcp/src/init.ts es solo el adapter de opencode, 01-getting-started.md:54-111 documenta el alta a mano y nada genera el modelo. Particion fijada: CLI mecanico (testeable, sin humano) + command interactivo (AskUserQuestion no existe fuera de sesion) + MCP fuera de scope v1. dependsOn dispatch-contract-file es por COLISION en packages/cli/src/index.ts, no por diseno. TR: axon/docs/task-requests/TR-project-init.md. Insertado a mano: axon add-node rechaza el id (exige <kind>/<slug>, el ledger usa <repo>/<slug>) — sintoma nuevo de axon/program-mode-schema.'
+
   - id: axon/strict-fails-on-unresolved
     track: cross
     repo: axon
