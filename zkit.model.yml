@@ -2078,6 +2078,7 @@ nodes:
       en `hyperdiff/core/zig/build.zig.zon` se resuelve por URL+hash de GitHub — el commit
       `7a02cf9` no está pusheado, así que `zig fetch` fallaría hoy. Push de zkit requiere OK
       explícito de waxin antes de que la lane hermana pueda cerrar M1 de su plan.
+      Auditoría de consumidores que respalda este nodo: `~/dotfiles/AUDIT-zkit-consumidores.md`.
     unblockedBy: >-
       Split de cand/ipc-wakeup, 2026-08-28, waxin en vivo. El doc de jarvis de la sesión
       agentics (§B) ya identificaba que el nodo original conflacionaba dos cosas: esta
@@ -2094,7 +2095,6 @@ nodes:
       wire — es Zig linkando Zig, mismo patrón que `trans/wire-hyperdiff`.
       Cierre por `gt/extraer-sin-sustituir`: NO está hecho hasta que el original en
       hyperdiff está BORRADO y hyperdiff importa la copia de zkit — no basta con copiar.
-    evidence: '~/dotfiles/AUDIT-zkit-consumidores.md'
     note: >-
       Toca hyperdiff (repo de axon1) para el borrado del original. axon1 no está activo en
       esta sesión (waxin confirmado 2026-08-28); avisado en COORD antes de tocar nada de ese
