@@ -71,6 +71,13 @@ repos:
     ssot: 'roadmap.spec.yml (formato pre-axon: phases + decisions; migración a nodes: pendiente)'
     role: 'consumidor del programa — motor de chunks del core, cliente QUIC por C-ABI, bindings; sexto repo desde 2026-09-03 por lock/mesh-en-el-programa. Sus decisiones de producto se quedan en su ledger.'
 
+  - id: spire
+    path: '/Volumes/KODAK1TB/REPOS y PROYECTOS/nodejs-bun/spire'
+    remote: 'MKS2508/spire (privado)'
+    ssot: 'sin ledger propio (0 tests, sin CI); sus nodos del programa viven aquí'
+    role: 'framework Elysia (core+db+host) que consumen cloudreve-mirror (hoy por tarballs a mano) y mesh (por decidir el alcance); supersede a consumer-bus en esta familia; séptimo repo desde 2026-09-03 por lock/spire-en-el-programa'
+
+
 
 lanes:
   - id: axon1
@@ -451,7 +458,7 @@ locks:
       al cerrar se queda done aquí, no vuelve. Abierto que la nota destapa: nombra a
       spire entre lo que mesh consumirá, y spire NO está en el programa (0 tests,
       consumido por tarballs a mano) — propuesta: entra como séptimo repo con el nodo
-      "spire publicable por npm"; decide waxin.
+      "spire publicable por npm". RESUELTO el mismo día: entra, lock/spire-en-el-programa.
     quote: >-
       waxin (nota de q1): "Mesh sí que entra en el programa porque va a consumir varias
       cosas de aquí: Spire, los bindings, conduit, etc. […] no hace falta que las 66
@@ -544,6 +551,31 @@ locks:
       condición de reapertura de D-051: iroh entra detrás del adaptador Transport de D-046
       no solo si QNT se atasca, sino también si se quiere "algo funcional antes" — es una
       decisión de calendario que toma waxin, no un fallo técnico.
+
+  - id: lock/spire-en-el-programa
+    date: '2026-09-03'
+    origin: 'AskUserQuestion tras la validación de q1 (la nota de q1 nombraba a spire y no estaba en el programa)'
+    quote: >-
+      waxin: "sí, la idea es que spire consuma zkit, y superseda al consumer bus, así que
+      entra."
+    decision: >-
+      spire es el SÉPTIMO repo del programa. Tres consecuencias, cada una con su nodo:
+      (1) spire/publicable-npm es el GATE de entrada — hoy spire tiene 0 tests, 0 CI y se
+      consume como tarballs construidos a mano (cloudreve-mirror package.json:25-26,43-44);
+      por lock/repos-del-core-publicos (TS por npm) nadie del programa lo pinnea por
+      tarball una vez publicado. (2) spire/absorb-bus-semantics: supersede a consumer-bus
+      —que es de otro producto (wraithd/agentics) y ya nadie usa— tomando SOLO sus
+      semánticas (snapshot+delta, subscribe-before-act, single-writer, topics tipados);
+      NUNCA su transporte socket, que tiene 3 bugs verificados (missedCount sin ping mata
+      toda conexión sana a ~45 s; doble hello con identidad hardcodeada; auth
+      estructuralmente inalcanzable). Hoy spire/packages/bus son 8 líneas de re-export con
+      la dependencia apuntando al revés (→ @mks2508/consumer-bus): eso es lo que se
+      invierte. (3) spire/consume-zkit: por el criterio de entrada del programa no entra
+      nada sin consumidor real — el candidato es la taxonomía de errores generada desde
+      ErrorSpace (como hyperdiff), por la capa de bindings; dependsOn zkit/bindings-layer.
+      Lo que mesh adopta de spire (core/db/host) es decisión de producto de mesh cuando
+      spire/publicable-npm cierre (mesh/consume-spire).
+
 
 
 # axon-core 0.6.x exige la clave `decisions:` (Decision[] con id+status). En este ledger las
@@ -2439,6 +2471,47 @@ nodes:
     dependsOn: [quic-zig/client-c-abi, mesh/consume-chunk-engine]
     dod: 'Adaptador detrás de la interfaz Transport de D-046/D-053 que sustituye al sink WS sin tocar el motor; cert de nodo (D-057/D-063) como anclaje de confianza del cliente; smoke nodo↔nodo en la tailnet. Puntero: mesh/roadmap.spec.yml D-066.'
     note: 'lock/stack-quic-es-quic-zig. Si QNT se atasca o waxin quiere algo funcional antes, iroh entra aquí, detrás de la misma interfaz.'
+
+  - id: spire/publicable-npm
+    track: cross
+    repo: spire
+    owner: 'por asignar'
+    title: 'spire publicable: tests mínimos + CI + @mks2508/spire-{core,db,host} en npm; nadie del programa lo vendoriza por tarball'
+    status: pending
+    dependsOn: []
+    dod: 'bun test con al menos los contratos de core/db/host cubiertos · .github/workflows con typecheck+test · publicación npm · cloudreve-mirror sustituye file:./vendor/spire/*.tgz por la versión publicada · .coolify.json de spire ya apunta a main (spire 1a1da25).'
+    note: 'lock/spire-en-el-programa (1) + lock/repos-del-core-publicos. Hoy: 0 tests, 0 CI (verificado 2026-09-03).'
+
+  - id: spire/absorb-bus-semantics
+    track: cross
+    repo: spire
+    owner: 'por asignar'
+    title: 'spire supersede a consumer-bus: absorbe las semánticas del bus, NO su transporte socket'
+    status: pending
+    dependsOn: []
+    dod: 'packages/bus deja de re-exportar @mks2508/consumer-bus (hoy 8 líneas con la dependencia al revés) e implementa snapshot+delta, subscribe-before-act, single-writer y topics tipados con tests; el transporte es nuevo o in-process, nunca el unix-socket de consumer-bus (3 bugs: unix-socket.server.ts:221-232 y el doble hello). Enmienda a lock/mapa-de-consumidores: la migración es de semánticas, no de código.'
+    note: 'lock/spire-en-el-programa (2). consumer-bus es de otro producto (wraithd/agentics): su DESIGN.md no nombra a spire, zkit, conduit ni mesh.'
+
+  - id: spire/consume-zkit
+    track: cross
+    repo: spire
+    owner: 'por asignar'
+    title: 'Primer consumo real de zkit desde spire (candidato: taxonomía de errores generada desde ErrorSpace)'
+    status: pending
+    dependsOn: [zkit/bindings-layer]
+    dod: 'Un consumo real en código (no prosa) que pase por la capa de bindings; el candidato es errors.generated.ts emitido desde el ErrorSpace de zkit como hace hyperdiff. Sin consumidor real no entra nada (criterio de lock/core-sdk-programa).'
+    note: 'lock/spire-en-el-programa (3).'
+
+  - id: mesh/consume-spire
+    track: cross
+    repo: mesh
+    owner: 'por asignar'
+    title: 'Qué adopta el hub de mesh de spire (core/db/host) — decisión de producto de mesh, gateada por spire publicable'
+    status: pending
+    dependsOn: [spire/publicable-npm]
+    dod: 'Decisión D-0xx en mesh/roadmap.spec.yml con el alcance (qué paquetes de spire, qué se queda en el Elysia propio del hub) y la migración correspondiente, solo cuando spire/publicable-npm esté done.'
+    note: 'lock/spire-en-el-programa · lock/mesh-en-el-programa. Nota de q1: "mesh va a consumir varias cosas de aquí: Spire, los bindings, conduit".'
+
 
 
 evidence:
