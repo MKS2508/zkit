@@ -41,9 +41,9 @@ created: '2026-08-27'
 repos:
   - id: zkit
     path: '/Volumes/KODAK1TB/REPOS y PROYECTOS/zig-and-node-bun-related/zkit'
-    remote: 'MKS2508/zkit (privado)'
+    remote: 'MKS2508/zkit (público — verificado en la API de GitHub 2026-09-03)'
     ssot: 'zkit.model.yml (este fichero)'
-    role: 'destino de la extracción; nace standalone, sin consumidores wireados'
+    role: 'destino de la extracción; consumido en código por hyperdiff (pin bdbdeba, 6 imports: HandleSlab, WakeupPipe, errors) y styx (pin 09fd8cf, 4 imports: TrackingAllocator, HandleSlab) — verificado 2026-09-03'
   - id: hyperdiff
     path: '/Volumes/KODAK1TB/REPOS y PROYECTOS/zig-and-node-bun-related/hyperdiff'
     remote: 'MKS2508/hyperdiff'
@@ -398,6 +398,42 @@ locks:
       carga nada, y se comporta como sesión desnuda afirmando lo contrario.
 
 # ── Hechos verificados que acotan el problema. No re-descubrir. ─────────────
+
+  - id: lock/core-sdk-programa
+    date: '2026-09-03'
+    provisional: true
+    decidedBy: 'axon cross-repo (sesión mesh) a partir de la cita literal de waxin; vetable en un commit'
+    quote: >-
+      waxin, 2026-09-03: "cloudmirror ahora es una alpha porque faltaba zkit y quic-zig y más
+      cosas, pero pretendemos migrar todo a un core SDK, mesh puede incluirse en eso o usar
+      parte de ese core SDK… conduit sirve a varios repos, y hay cadena de dependencia real
+      para desbloquear cosas en otros repos que dependen de otros repos". Y sobre la puerta:
+      "En zkit ya está una capa planeada de bindings, irá ahí, todo lo de FFI/ABI/NAPI en
+      zkit, y de zkit todos los demás lo consumen todos".
+    decision: >-
+      Este programa ES el "core SDK" que waxin nombra de viva voz: zkit (primitivas +
+      convenciones + capa de bindings, ver zkit/bindings-layer) + quic-zig (transporte) +
+      libxev (event loop), consumidos por hyperdiff, styx, conduit/cloudreve-mirror y mesh.
+      Antes de este lock la palabra "core SDK" tenía CERO hits en los cuatro ledgers (zkit,
+      styx, hyperdiff, mesh): la visión vivía solo en la cabeza de waxin y cinco auditorías
+      tuvieron que reconstruirla preguntándole. Aquí queda escrita.
+      CRITERIO DE ENTRADA (propuesto por axon, NO dicho por waxin — es la parte vetable):
+      una pieza entra al core cuando tiene DOS consumidores reales en código, no cuando
+      parece reutilizable. Sale del contrapunto de axon2 (COORD-zig-toolchain.md:1969-1982,
+      "78% archivo y 22% librería") y de la conclusión de la auditoría
+      (AUDIT-zkit-consumidores.md §C: "meter piezas sin segundo consumidor no construye una
+      librería: construye un almacén"). Medido HOY (zkit 6784a1d): 760 líneas consumidas
+      (32%) por dos consumidores distintos y 1585 sin consumidor (67%: reorder_buffer 822,
+      subscriber_queue 481, watchdog 233, log 49) gateadas por la gauntlet H-F5. El criterio
+      no expulsa lo que ya está: gatea lo que entra.
+      mesh es CONSUMIDOR del programa. Si además entra como sexto repo de este ledger es la
+      Q1 de la interview cross-repo, que sigue abierta para waxin.
+
+# axon-core 0.6.x exige la clave `decisions:` (Decision[] con id+status). En este ledger las
+# decisiones de waxin viven en `locks:` con su propio vocabulario; esta lista queda vacía a
+# propósito para que `axon status/set-status` acepten el fichero. No es "cero decisiones".
+decisions: []
+
 groundTruth:
   - id: gt/comptime-anytype-anida
     fact: >-
@@ -550,13 +586,24 @@ groundTruth:
       la superficie FFI (42 códigos reales, 1001-8102). `1` no es un ErrorCode
       válido, así que un consumidor TS que haga `createHyperdiffError(1)`
       rompe la convención. Fix de una línea, pendiente.
-  - id: gt/errors-hand-synced
+  - id: gt/errors-hand-synced-RETIRADO-ya-se-genera
     fact: >-
-      La ABI de errores se mantiene A MANO en 5 tablas paralelas entre dos
-      lenguajes: errors.zig (error sets + enum numérico + errorMessage) y
-      errors.ts (union de strings + HYPERDIFF_NUMERIC_CODES + ERROR_MESSAGES).
-      El doc-comment promete "1:1 with errors.zig" y NADA lo comprueba.
-      Es el DoD concreto de zkit/errors.
+      RETIRADA 2026-09-03 (axon cross-repo, sesión mesh) del groundTruth
+      `gt/errors-hand-synced`, que decía: "La ABI de errores se mantiene A MANO en 5
+      tablas paralelas entre dos lenguajes (errors.zig / errors.ts)… NADA lo comprueba. Es
+      el DoD concreto de zkit/errors". Lo falsificó este mismo ledger 1.100 líneas más
+      abajo: `trans/wire-hyperdiff` (done) cierra con "gt/errors-hand-synced deja de ser
+      cierto" — `zig build emit-errors` (hyperdiff core/zig/build.zig:355) escribe
+      core/packages/utils/src/errors.generated.ts (269 líneas) desde ErrorSpace, y
+      `gate-errors` (:373) exige texto exacto; errors.ts quedó en 113 líneas sin
+      transcribir códigos. Verificado en hyperdiff ec926b0.
+      LO QUE SIGUE VIVO, y por eso la entrada no se borra: (a) residuo pequeño —
+      errors.ts:58-66 getErrorDomain codifica a mano las bases de dominio (1000..7000) que
+      el fichero generado ya emite como mapa código→dominio, fuera del gate; (b) el agujero
+      grande un piso más arriba — los 70 export fn de hyperdiff (exports.zig 29 +
+      watch/exports.zig 41) están transcritos a mano TRES veces (addon.c 30 extern, ffi-bun
+      38, ffi-deno 31), con CERO ficheros .h y sin generador ni gate. Ese es el DoD real de
+      zkit/bindings-layer.
   - id: gt/handle-verdict
     fact: >-
       `hyperdiff/handle_slab.zig` (242 l) es estrictamente mejor que
@@ -2060,7 +2107,9 @@ nodes:
     repo: zkit
     owner: axon-zkit
     title: 'WakeupPipe (Zig puro, sin C-ABI) — migrar de hyperdiff a zkit'
-    status: in_progress
+    status: done
+    completedDate: '2026-09-03'
+    verifiedBy: 'axon cross-repo (sesión mesh), 2026-09-03, en git y en código — no por report'
     dependsOn: [audit/hyperdiff-zkit]
     evidence: >-
       LADO ZKIT CERRADO Y VERIFICADO (2026-08-28): sibling `ipc-wakeup-pipe` portó
@@ -2079,6 +2128,16 @@ nodes:
       `7a02cf9` no está pusheado, así que `zig fetch` fallaría hoy. Push de zkit requiere OK
       explícito de waxin antes de que la lane hermana pueda cerrar M1 de su plan.
       Auditoría de consumidores que respalda este nodo: `~/dotfiles/AUDIT-zkit-consumidores.md`.
+      CIERRE 2026-09-03 (axon cross-repo): las dos condiciones de gt/extraer-sin-sustituir
+      se cumplen — el original hyperdiff/core/zig/src/watch/ipc.zig está BORRADO (commit
+      1970f73 "consumir WakeupPipe desde zkit y borrar la copia local", que SÍ está en
+      origin/master de hyperdiff) y hyperdiff importa la copia de zkit en 4 sitios
+      (watch/platform.zig:1181,1734 · watch/watcher.zig:491,577). El "7a02cf9 no está
+      pusheado" de arriba caducó: origin/master de zkit contiene 7a02cf9 y bdbdeba, y el pin
+      por URL+hash de hyperdiff (build.zig.zon:9 → bdbdeba) resuelve con ipc.zig dentro.
+      Mismo patrón cerrado para handle_slab.zig (borrado en 80a8570, 5 usos de
+      zkit.HandleSlab). Ojo: el pin de styx (09fd8cf) es ANTERIOR al merge de ipc y no trae
+      WakeupPipe; styx no lo necesita hoy.
     unblockedBy: >-
       Split de cand/ipc-wakeup, 2026-08-28, waxin en vivo. El doc de jarvis de la sesión
       agentics (§B) ya identificaba que el nodo original conflacionaba dos cosas: esta
@@ -2112,7 +2171,11 @@ nodes:
       `hyperdiff/core/zig/src/watch/ipc.zig`, 151 lineas: wakeup por pipe entre
       threads — el watcher escribe 1 byte tras empujar al ring, el consumidor
       mete el fd de lectura en su event loop (epoll/kqueue/libuv/Bun) y drena.
-      zkit nacio con `ipc/` como modulo fundacional y NUNCA se construyo.
+      zkit nacio con `ipc/` como modulo fundacional. El puente C-ABI del wire NUNCA se
+      construyo; el `WakeupPipe` SI, y vive en `src/ipc.zig` (ver cand/ipc-wakeup-pipe,
+      done) — mismo nombre, otra cosa. Es la colision C2 del mapa cross-repo (2026-09-03):
+      el lock mapa-de-consumidores define `zkit/ipc` como puente al wire NDJSON y el
+      fichero que se llama ipc.zig es un pipe de wakeup entre threads.
       Consumidores NOMBRADOS y verificados en GitHub (2026-08-28): `MKS2508/spire`
       (TypeScript, "Typed runtime framework: core + sdk + bus + db + host") y
       `MKS2508/consumer-bus` (TypeScript, pub/sub local para daemons
@@ -2146,6 +2209,43 @@ nodes:
       linka los buenos.
 
 # ── Evidencia: dónde vive el porqué (NO duplicar aquí) ──────────────────────
+
+  - id: zkit/bindings-layer
+    track: zkit
+    repo: zkit
+    owner: 'por asignar — lane del programa; registrado por axon cross-repo (sesión mesh) 2026-09-03'
+    title: 'Capa de bindings de zkit: la convención C-ABI + los generadores (header y tablas de símbolos), no un host de símbolos ajenos'
+    status: pending
+    provisional: true
+    decidedBy: 'axon cross-repo a partir de la cita de waxin "todo lo de FFI/ABI/NAPI en zkit"; el ALCANCE es lo vetable'
+    dependsOn: [trans/wire-hyperdiff]
+    dod: >-
+      (1) zkit exporta por C-ABI sus propias primitivas con la convención ya validada en
+      producción por hyperdiff (71 export fn, una superficie para 4 runtimes: .node,
+      bun:ffi, Deno.dlopen, WASM): rc u32 (0 ok · 1 buffer pequeño devolviendo el tamaño
+      requerido · 2 error; nunca excepciones ni errno) · el buffer de salida lo pone el
+      caller, ningún allocator cruza · payload packed + DataView, una travesía por llamada ·
+      objetos con estado como u64 opaco minteado por zkit.HandleSlab. Hoy
+      grep 'export fn' zkit/src/ da 0.
+      (2) Los generadores que hyperdiff NO tiene: emitir el header .h y las tablas de
+      prototipos para napi/ffi-bun/ffi-deno desde la declaración Zig. Hoy los 70 símbolos
+      de hyperdiff están transcritos a mano 3 veces (addon.c 30, ffi-bun 38, ffi-deno 31)
+      con CERO ficheros .h y sin gate; la taxonomía de errores ya se genera
+      (zig build emit-errors → errors.generated.ts) y es el patrón a extender.
+      (3) ALCANCE — lo que decide la ambigüedad de la cita: la capa es CONVENCIÓN + TOOLING,
+      no un host. quic-zig conserva su superficie qz_* (18 hoy; el cliente existe y falta
+      exponerlo, mesh D-066) y ADOPTA la convención y el generador; zkit NO depende de
+      quic-zig (zkit/build.zig.zon no tiene bloque .dependencies, y meterle quic-zig
+      invertiría la cadena de pinneo libxev → quic-zig → consumidores). Igual para
+      hyperdiff: sus 71 export fn se quedan en hyperdiff y pasan por el generador.
+      (4) Primer consumidor de la extracción: hyperdiff (lock/bindings-parity, parity gate
+      obligatorio — mission-control consume @mks2508/hyperdiff-* en producción).
+    note: >-
+      Q3 de la interview cross-repo 2026-09-03: el ledger no tenía ningún nodo que
+      planificara esta capa aunque waxin la dio por planeada de viva voz — grep bindings
+      daba 6 líneas / 5 loci y ninguno era un nodo de trabajo. Sigue abierto para waxin el
+      ORDEN respecto a exponer el cliente de quic-zig (Q6 de la interview).
+
 evidence:
   - path: '~/dotfiles/HANDOFF-zig-toolchain-inception.md'
     what: 'research del toolchain, evidencia y lo descartado'
