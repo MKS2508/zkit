@@ -438,7 +438,20 @@ locks:
 
   - id: lock/mesh-en-el-programa
     date: '2026-09-03'
-    origin: 'interview cross-repo XR-001 draft 2, q1 (tablet). Elegida (a) con flag «míralo tú» + nota; lockeada por axon siguiendo la nota literal. Confirmación de waxin pendiente al leer.'
+    origin: 'interview cross-repo XR-001 draft 2, q1 (tablet). Elegida (a) con flag «míralo tú» + nota. REVISADA por axon el 2026-09-03: VALIDADA — mejor que la (b) que axon recomendaba.'
+    validation: >-
+      axon recomendaba (b) por dos contras que ya no existen: el ledger de zkit no se
+      podía escribir (reparado el mismo día: axon status/set-status verdes) y las 66
+      decisiones de producto (la nota las deja en mesh). Y (a) gana en algo que (b) no
+      puede dar: el DAG se vuelve computable — las lanes de mesh dependen de nodos del
+      programa (zkit/bindings-layer, quic-zig/client-c-abi, conduit/chunk-engine) y solo
+      aquí pueden ser dependsOn reales; además mesh/roadmap.spec.yml es formato pre-axon
+      (phases:) y no puede alojar nodos con DAG. Matiz formalizado: un nodo es del
+      programa si tiene dependsOn hacia otro repo o alguien de otro repo depende de él;
+      al cerrar se queda done aquí, no vuelve. Abierto que la nota destapa: nombra a
+      spire entre lo que mesh consumirá, y spire NO está en el programa (0 tests,
+      consumido por tarballs a mano) — propuesta: entra como séptimo repo con el nodo
+      "spire publicable por npm"; decide waxin.
     quote: >-
       waxin (nota de q1): "Mesh sí que entra en el programa porque va a consumir varias
       cosas de aquí: Spire, los bindings, conduit, etc. […] no hace falta que las 66
@@ -458,7 +471,21 @@ locks:
 
   - id: lock/conduit-motor-al-core
     date: '2026-09-03'
-    origin: 'interview XR-001 draft 2, q2. Elegida (c) con flag «míralo tú» + nota; lockeada por axon siguiendo la nota. Confirmación pendiente.'
+    origin: 'interview XR-001 draft 2, q2. Elegida (c) con flag «míralo tú» + nota. REVISADA por axon el 2026-09-03: VALIDADA — mejor arquitectura que la (a) "disolver" que axon recomendaba.'
+    validation: >-
+      La (a) de axon tenía un agujero: decía "paquete del core" sin decir en qué repo. El
+      core (zkit/quic-zig/libxev) es Zig; un paquete TS necesita una casa TS con workspace
+      y publicación, y eso ya es conduit (apps/cli-bun + packages/*). Disolver conduit era
+      inventar una casa nueva para no ganar nada. Sobre "¿portarlo a Zig?": NO — el motor
+      es orquestación de I/O (4 llamadas de transporte, estado, hashing); lo caro (SHA-256
+      de 25 MiB, AES-GCM) ya es nativo en Bun, y un port añadiría la puerta C-ABI (B1)
+      como dependencia de una pieza cuyos tres consumidores son TS (CLI, mesh,
+      cloudreve). Por el criterio de entrada del programa (dos consumidores reales): cero
+      consumidores no-TS → no se porta; se reabre si aparece uno (wraith-app, Swift).
+      "Borrar duplicado y ordenar": sí, el Zig de conduit se borra (400 LoC, 0 símbolos,
+      OidcClient nunca compiló, HandleSlab con use-after-free por construcción). Lo que
+      axon mantiene de su (a): integridad sobre ciphertext, seal(key) recibe la clave,
+      y tests ANTES de mover nada.
     quote: >-
       waxin (nota de q2): "styx puede o no puede necesitar conduit. mesh sí va a necesitar
       conduit, cloudreve-mirror sí va a necesitar conduit y este sí va a necesitar el core
@@ -2335,6 +2362,84 @@ nodes:
       planificara esta capa aunque waxin la dio por planeada de viva voz — grep bindings
       daba 6 líneas / 5 loci y ninguno era un nodo de trabajo. Sigue abierto para waxin el
       ORDEN respecto a exponer el cliente de quic-zig (Q6 de la interview).
+
+  - id: conduit/chunk-engine
+    track: cross
+    repo: conduit
+    owner: 'por asignar — lane TS (task-executor); registrado por axon cross-repo 2026-09-03'
+    title: 'Paquete TS del motor de chunks (seal(key) + ISink, integridad sobre ciphertext), publicado como @mks2508/*, con tests primero'
+    status: pending
+    dependsOn: []
+    dod: >-
+      packages/<motor>/ en conduit: reescritura (~120 líneas) usando
+      apps/cli-bun/src/lib/upload.ts:94-372 como spec, SIN auth ni telemetría ni estado en
+      disco dentro (se inyectan); ISink { createSession, getSession, putChunk, complete }
+      1:1 con las 4 llamadas HTTP de hoy (:203, :166, :274, :334) y un sink HTTP como
+      primer adaptador; seal(key: CryptoKey) recibe la clave (nunca la deriva); SHA-256
+      sobre el ciphertext (hoy :144-148 y :343 hashean el claro → rompe al envolver);
+      retry por chunk (hoy :311-327 falla la subida entera) y estado sin race
+      read-modify-write (hoy state.ts:58-64). Tests del protocolo con sink en memoria
+      ANTES de que el CLI lo consuma; el CLI pasa a consumir el paquete; 25 MiB × 4 se
+      mantienen (config.ts:22-23) y muere DEFAULT_CONCURRENCY = 8 (upload.ts:35).
+      Publicación npm (lock/repos-del-core-publicos: TS por npm).
+    note: 'lock/conduit-motor-al-core. Consumidores: el CLI de conduit, mesh (mesh/consume-chunk-engine) y cloudreve-mirror.'
+
+  - id: conduit/retire-dead-zig
+    track: retire
+    repo: conduit
+    owner: 'por asignar'
+    title: 'Borrar packages/sdk-zig, packages/bridge-zig y apps/cli-zig (400 LoC, 0 símbolos, OidcClient nunca compiló, HandleSlab sin generación)'
+    status: pending
+    dependsOn: []
+    dod: 'git rm de los tres árboles + workspace/package.json sin @conduit/bridge-zig + README sin las filas que mienten (:97-100, :108-109). Nada lo consume: 0 hits de dlopen/bun:ffi/sdk-zig/bridge-zig en 5 repos (verificado 2026-09-03).'
+    note: 'lock/conduit-motor-al-core (3). Cumple por borrado la consecuencia de lock/mapa-de-consumidores (matar el HandleSlab duplicado).'
+
+  - id: quic-zig/client-c-abi
+    track: cross
+    repo: quic-zig
+    owner: 'por asignar — lane Zig (builder-dataplane); registrado por axon cross-repo 2026-09-03'
+    title: 'Exponer por C-ABI el cliente QUIC que ya existe: qz_client_* sobre event_loop.Client + CApiClientHandler propio, raw QUIC'
+    status: pending
+    dependsOn: []
+    dod: >-
+      ~9 export fn qz_client_* (create/connect/tick/poll/flush/stop/destroy + stream
+      open/send/close sobre ClientSession) en src/c_api.zig, con un WtClient espejo de
+      WtServer (:268-272) y un CApiClientHandler propio (~150 LoC): CApiHandler NO compila
+      como cliente (onConnectRequest fuera de la whitelist de Client, event_loop.zig:1343-1370;
+      callbacks con *Session en vez de *ClientSession). Protocol .quic (raw), no
+      WebTransport. Anclaje de confianza en la DoD: el camino de alto nivel ignora
+      ca_cert_path (event_loop.zig:1438-1446) y skip_cert_verify tiene default true
+      (tls13.zig:515) → ca_bundle inyectado por ClientConfig.tls_config o TODO arreglado;
+      test que FALLA con cadena sin raíz de confianza. Convención C-ABI del programa (rc u32
+      · buffer del caller · payload packed · handles u64). Smoke: cliente C-ABI contra el
+      servidor C-ABI existente, loopback.
+    note: 'mesh D-066 + lock/stack-quic-es-quic-zig + lock/orden-extraccion-y-cliente-en-paralelo (en paralelo con zkit/bindings-layer). Windows: hereda D-064 (Client.start usa file.poll, :1558).'
+
+  - id: mesh/consume-chunk-engine
+    track: cross
+    repo: mesh
+    owner: 'por asignar'
+    title: 'mesh consume el paquete del motor detrás de Transport (D-053): mesh-transfer de "copiar" a "consumir"'
+    status: pending
+    dependsOn: [conduit/chunk-engine]
+    dod: >-
+      docs/task-requests/mesh-transfer.plan.md reescrito (su §mecanismo caduca); el hub
+      deja de acumular el fichero en RAM (ws-handler.ts:314 → :680) y de aplicar el tope
+      de 100 MiB después de comérselo (blobs/postgres.ts:39,146); el nodo usa el paquete
+      con seal(key) alimentado por el ECDH de D-062; sink WS hoy, sink QUIC cuando exista
+      mesh/quic-transport-adapter. Puntero: mesh/roadmap.spec.yml D-065 (RESUELTA) y D-067.
+    note: 'lock/mesh-en-el-programa: nodo del programa mientras dependa de conduit/chunk-engine.'
+
+  - id: mesh/quic-transport-adapter
+    track: cross
+    repo: mesh
+    owner: 'por asignar'
+    title: 'Adaptador Transport de mesh sobre qz_client_* vía bun:ffi (D-066): una travesía por chunk'
+    status: pending
+    dependsOn: [quic-zig/client-c-abi, mesh/consume-chunk-engine]
+    dod: 'Adaptador detrás de la interfaz Transport de D-046/D-053 que sustituye al sink WS sin tocar el motor; cert de nodo (D-057/D-063) como anclaje de confianza del cliente; smoke nodo↔nodo en la tailnet. Puntero: mesh/roadmap.spec.yml D-066.'
+    note: 'lock/stack-quic-es-quic-zig. Si QNT se atasca o waxin quiere algo funcional antes, iroh entra aquí, detrás de la misma interfaz.'
+
 
 evidence:
   - path: '~/dotfiles/HANDOFF-zig-toolchain-inception.md'
