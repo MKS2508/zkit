@@ -2604,7 +2604,9 @@ nodes:
     repo: axon
     owner: axon-mesh
     title: 'axon push --ok "<cita>": pre-flight (rango, trailers vía commit-msg guard, secretos, status --strict, gen --check) + AXON_PUSH_OK=1 al invocar git + log XDG'
-    status: in_progress
+    status: done
+    completedDate: '2026-09-03'
+    evidence: 'sib/push-cli a48a8e1..4a1f71f, merge cf31d92 en axon master (sin push). Verificado por axon-mesh: tests push 11/11 + secret-patterns 11/11 rc=0; perturbacion en vivo en repo temporal con bare: sin --ok rc=2, --dry-run rc=0, --ok limpio pushea (ahead 0), commit con trailer -> check trailers rc=1, secreto ghp_ falso -> check secrets rc=1 sin filtrar el valor, --log lista.'
     dependsOn: []
     dod: 'Puntero: axon/docs/task-requests/TR-axon-push-cli.md §3. Falsable: axon push sin --ok -> rc distinto de 0; con --ok y pre-flight sucio -> rc distinto de 0 con razón; limpio -> push con AXON_PUSH_OK=1 y línea en el log.'
     note: 'D2 de orchestration-commands.md §8; junto con axon/global-githooks-push-guard cierra D2. Overrides del maestro al final del .plan.md (sin campo genOut; docs en 02-cli.md).'
