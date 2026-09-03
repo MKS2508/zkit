@@ -2630,9 +2630,11 @@ nodes:
     repo: axon
     owner: 'por asignar'
     title: 'Contrato de dispatch como fichero .tmp/dispatch/<unit>.json (schema axon-dispatch/1), leído por require-report/enforce-read-only y por siblings verify'
-    status: pending
+    status: done
+    completedDate: '2026-09-03'
     dependsOn: [axon/plugin-hooks-guards]
     dod: 'Puntero: axon/docs/task-requests/TR-dispatch-contract-file.md §3. Falsable: contrato inválido (campo obligatorio ausente, role fuera de enum, path relativo) -> rechazado con error legible, nunca aceptado a medias.'
+    evidence: 'CERRADO 2026-09-03, merge c5440b8 en axon master (lane sib/dispatch-contract-file: cda6699 schema core, 9248173 CLI, 6eb8981 hooks). Verificado por axon-mesh con perturbaciones propias sobre un contrato valido: kind fuera del enum, kind=wraith (reservado v1), branch dentro de la variante subagent, role invalido, cwd relativo y unit ausente -> los 6 rc=1 contrato invalido; control positivo (copia intacta) rc=0. Tests 514 pass / 10 fail, los 10 preexistentes en master (show/freeze/schema memoria), ninguno de dispatch; hooks 58/58. Conflicto en packages/cli/src/index.ts reconciliado por el maestro (bloque ask de la lane de memoria + bloque dispatch).'
     note: 'D4 de orchestration-commands.md §8.'
 
   - id: axon/plugin-bootstrap-skill
@@ -2710,9 +2712,11 @@ nodes:
     repo: axon
     owner: axon-mesh
     title: 'axon init + /axon:init — alta de proyecto (nuevo | existente | entra en ledger cross-repo): CLI mecanico idempotente + command con la interview'
-    status: in_progress
+    status: done
+    completedDate: '2026-09-03'
     dependsOn: [axon/dispatch-contract-file]
     dod: 'Falsable: en dir vacio, axon init --kind new --name demo rc=0 y axon status --strict rc=0 contra el modelo escrito; dos runs seguidos no cambian un byte; config con keys ajenas se preserva; config corrupto rc!=0 y fichero intacto (hash); --ledger + --standalone rc!=0; --dry-run no toca disco. Command /axon:init declarado en plugin.json, <=3 AskUserQuestion con previews.'
+    evidence: 'CERRADO 2026-09-03, merge 8ad7203 en axon master (lane sib/project-init: 4187efd CLI, c21b898 18 tests, dddc66c command). Verificado por axon-mesh con probes propias: init --kind new en dir vacio rc=0 y axon status --strict rc=0 contra el modelo generado (gate autorreferencial); idempotencia por md5 del arbol (2o run identico); key ajena en el config preservada; config con JSON corrupto rc=1 y hash del fichero intacto; --ledger+--standalone rc=1; --ledger inexistente rc=1; --dry-run con hash del arbol identico Y control positivo demostrando que el metodo detecta cambios reales. 7 hunks de conflicto en index.ts reconciliados por el maestro, typecheck rc=0, smoke de init/dispatch/memory tras el merge.'
     note: 'Pedido por waxin 2026-09-03: "que me pregunte un par de cosas con AskUserQuestion y fuera". Hueco medido el mismo dia: plugin/commands/ vacio, axon init no existe en el CLI, packages/mcp/src/init.ts es solo el adapter de opencode, 01-getting-started.md:54-111 documenta el alta a mano y nada genera el modelo. Particion fijada: CLI mecanico (testeable, sin humano) + command interactivo (AskUserQuestion no existe fuera de sesion) + MCP fuera de scope v1. dependsOn dispatch-contract-file es por COLISION en packages/cli/src/index.ts, no por diseno. TR: axon/docs/task-requests/TR-project-init.md. Insertado a mano: axon add-node rechaza el id (exige <kind>/<slug>, el ledger usa <repo>/<slug>) — sintoma nuevo de axon/program-mode-schema.'
 
   - id: axon/strict-fails-on-unresolved
