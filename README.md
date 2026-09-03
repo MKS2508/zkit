@@ -3,7 +3,7 @@
 Infraestructura Zig reutilizable cross-project: las piezas que varios repos
 estaban escribiendo por separado, o que sólo existían en uno.
 
-`Zig 0.17.0-dev.1893+78e3b1c73` · repo privado · **consumido en producción por hyperdiff y styx**
+`Zig 0.17.0-dev.1893+78e3b1c73` · repo público (verificado en la API de GitHub el 2026-09-03) · **consumido en producción por hyperdiff y styx**
 
 ## Estado
 
