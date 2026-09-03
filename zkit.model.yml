@@ -2606,7 +2606,7 @@ nodes:
     title: 'axon push --ok "<cita>": pre-flight (rango, trailers vía commit-msg guard, secretos, status --strict, gen --check) + AXON_PUSH_OK=1 al invocar git + log XDG'
     status: done
     completedDate: '2026-09-03'
-    evidence: 'sib/push-cli a48a8e1..4a1f71f, merge cf31d92 en axon master (sin push). Verificado por axon-mesh: tests push 11/11 + secret-patterns 11/11 rc=0; perturbacion en vivo en repo temporal con bare: sin --ok rc=2, --dry-run rc=0, --ok limpio pushea (ahead 0), commit con trailer -> check trailers rc=1, secreto ghp_ falso -> check secrets rc=1 sin filtrar el valor, --log lista.'
+    evidence: 'sib/push-cli a48a8e1..4a1f71f, merge cf31d92 en axon master (sin push). Verificado por axon-mesh: tests push 11/11 + secret-patterns 11/11 rc=0; perturbacion en vivo en repo temporal con bare: sin --ok rc=2, --dry-run rc=0, --ok limpio pushea (ahead 0), commit con trailer -> check trailers rc=1, secreto ghp_ falso -> check secrets rc=1 sin filtrar el valor, --log lista. Fix1 c0da490 (specimens en runtime: el scanner se detectaba a si mismo), fix2 23802f4 (--accept <commit>:<path>, aceptacion explicita y logueada), fix3 en curso (razon agrupada sin recorte a 5). Primeros pushes reales con axon push --ok: zkit, dotfiles, mesh, axon (31 commits, 8 hallazgos historicos aceptados y logueados).'
     dependsOn: []
     dod: 'Puntero: axon/docs/task-requests/TR-axon-push-cli.md §3. Falsable: axon push sin --ok -> rc distinto de 0; con --ok y pre-flight sucio -> rc distinto de 0 con razón; limpio -> push con AXON_PUSH_OK=1 y línea en el log.'
     note: 'D2 de orchestration-commands.md §8; junto con axon/global-githooks-push-guard cierra D2. Overrides del maestro al final del .plan.md (sin campo genOut; docs en 02-cli.md).'
@@ -2619,7 +2619,7 @@ nodes:
     title: 'Guards de Claude Code en el plugin axon (0.3.0): redirect-report-write, deny-credential-read, require-report, enforce-read-only'
     status: done
     completedDate: '2026-09-03'
-    evidence: 'sib/plugin-hooks-guards fafc3de..31ecc35 (8 commits), merge en axon master (sin push). Verificado por axon-mesh: bun test plugin/hooks 50/50 + smoke rc=0; 22 specimens propios rojo/verde a nivel proceso; en vivo con claude -p --plugin-dir: deny-credential-read deniega cat de un .key (contra el worktree con espacios tras fix2) y require-report bloquea SubagentStop de un subagente real (receipt en su transcript). Pendiente: claude plugin update (marketplace GitHub, exige push) y retirar el hook de dotfiles.'
+    evidence: 'sib/plugin-hooks-guards fafc3de..31ecc35 (8 commits), merge en axon master (sin push). Verificado por axon-mesh: bun test plugin/hooks 50/50 + smoke rc=0; 22 specimens propios rojo/verde a nivel proceso; en vivo con claude -p --plugin-dir: deny-credential-read deniega cat de un .key (contra el worktree con espacios tras fix2) y require-report bloquea SubagentStop de un subagente real (receipt en su transcript). Cerrado del todo: merge 719b3a2, push 7bfaf73, plugin 0.3.0 instalado en los 4 config dirs, hook viejo retirado (axon/retire-dotfiles-hook).'
     dependsOn: []
     dod: 'Puntero: axon/docs/task-requests/TR-plugin-hooks-guards.md §3. Falsable: rama roja y verde por hook con specimens de stdin JSON reales, rc por redirect; prueba con subagente real; verificado en vivo con claude --plugin-dir por el maestro.'
     note: 'D1/D5 de orchestration-commands.md §8. Al verificarse en vivo, el maestro retira ~/dotfiles/claude/hooks/ y su entrada en ~/.claude/settings.json.'
@@ -2731,7 +2731,9 @@ nodes:
     repo: dotfiles
     owner: axon-mesh
     title: 'Retirar ~/dotfiles/claude/hooks/ (redirect-report-write.mts) y su entrada PreToolUse en ~/.claude/settings.json una vez el plugin axon 0.3.0 este instalado'
-    status: pending
+    status: done
+    completedDate: '2026-09-03'
+    evidence: 'axon master pusheado (7bfaf73); claude plugin update axon@axon 0.2.1 -> 0.3.0 en ~/.claude (user + project /Users/mks), -minimax, -glm, -deepseek; ~/.claude/settings.json sin la entrada PreToolUse del hook viejo (Stop intacto); ~/dotfiles/claude/hooks/ borrado (no estaba trackeado); en vivo sin --plugin-dir: cat de un .key denegado y Write a /tmp/x-report.md redirigido a .tmp/reports/ solo por el plugin. Verificado por axon-mesh 2026-09-03.'
     dependsOn: [axon/plugin-hooks-guards]
     dod: 'Falsable: claude plugin list muestra axon@axon 0.3.0; settings.json sin la entrada del hook viejo; un Write a /tmp/x-report.md en sesion real sigue aterrizando en .tmp/reports/ (solo por el plugin); dotfiles sin claude/hooks/.'
     note: 'Requiere push de axon master (marketplace axon = GitHub mks2508/axon) + claude plugin update axon@axon en los 4 config dirs. Citado por TR-plugin-hooks-guards SS2.4.'
