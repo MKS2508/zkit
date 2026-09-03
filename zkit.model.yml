@@ -2606,7 +2606,7 @@ nodes:
     title: 'axon push --ok "<cita>": pre-flight (rango, trailers vía commit-msg guard, secretos, status --strict, gen --check) + AXON_PUSH_OK=1 al invocar git + log XDG'
     status: done
     completedDate: '2026-09-03'
-    evidence: 'sib/push-cli a48a8e1..4a1f71f, merge cf31d92 en axon master (sin push). Verificado por axon-mesh: tests push 11/11 + secret-patterns 11/11 rc=0; perturbacion en vivo en repo temporal con bare: sin --ok rc=2, --dry-run rc=0, --ok limpio pushea (ahead 0), commit con trailer -> check trailers rc=1, secreto ghp_ falso -> check secrets rc=1 sin filtrar el valor, --log lista. Fix1 c0da490 (specimens en runtime: el scanner se detectaba a si mismo), fix2 23802f4 (--accept <commit>:<path>, aceptacion explicita y logueada), fix3 en curso (razon agrupada sin recorte a 5). Primeros pushes reales con axon push --ok: zkit, dotfiles, mesh, axon (31 commits, 8 hallazgos historicos aceptados y logueados).'
+    evidence: 'sib/push-cli a48a8e1..4a1f71f, merge cf31d92 en axon master (sin push). Verificado por axon-mesh: tests push 11/11 + secret-patterns 11/11 rc=0; perturbacion en vivo en repo temporal con bare: sin --ok rc=2, --dry-run rc=0, --ok limpio pushea (ahead 0), commit con trailer -> check trailers rc=1, secreto ghp_ falso -> check secrets rc=1 sin filtrar el valor, --log lista. Fix1 c0da490 (specimens en runtime: el scanner se detectaba a si mismo), fix2 23802f4 (--accept <commit>:<path>, aceptacion explicita y logueada), fix3 en curso (razon agrupada sin recorte a 5). Primeros pushes reales con axon push --ok: zkit, dotfiles, mesh, axon (31 commits, 8 hallazgos historicos aceptados y logueados). Fix3 3217f1a: razon de secrets agrupada por commit:fichero con conteo (verificado con 3+2 hallazgos en 2 commits).'
     dependsOn: []
     dod: 'Puntero: axon/docs/task-requests/TR-axon-push-cli.md §3. Falsable: axon push sin --ok -> rc distinto de 0; con --ok y pre-flight sucio -> rc distinto de 0 con razón; limpio -> push con AXON_PUSH_OK=1 y línea en el log.'
     note: 'D2 de orchestration-commands.md §8; junto con axon/global-githooks-push-guard cierra D2. Overrides del maestro al final del .plan.md (sin campo genOut; docs en 02-cli.md).'
@@ -2619,7 +2619,7 @@ nodes:
     title: 'Guards de Claude Code en el plugin axon (0.3.0): redirect-report-write, deny-credential-read, require-report, enforce-read-only'
     status: done
     completedDate: '2026-09-03'
-    evidence: 'sib/plugin-hooks-guards fafc3de..31ecc35 (8 commits), merge en axon master (sin push). Verificado por axon-mesh: bun test plugin/hooks 50/50 + smoke rc=0; 22 specimens propios rojo/verde a nivel proceso; en vivo con claude -p --plugin-dir: deny-credential-read deniega cat de un .key (contra el worktree con espacios tras fix2) y require-report bloquea SubagentStop de un subagente real (receipt en su transcript). Cerrado del todo: merge 719b3a2, push 7bfaf73, plugin 0.3.0 instalado en los 4 config dirs, hook viejo retirado (axon/retire-dotfiles-hook).'
+    evidence: 'sib/plugin-hooks-guards fafc3de..31ecc35 (8 commits), merge en axon master (sin push). Verificado por axon-mesh: bun test plugin/hooks 50/50 + smoke rc=0; 22 specimens propios rojo/verde a nivel proceso; en vivo con claude -p --plugin-dir: deny-credential-read deniega cat de un .key (contra el worktree con espacios tras fix2) y require-report bloquea SubagentStop de un subagente real (receipt en su transcript). Cerrado del todo: merge 719b3a2, push 7bfaf73, plugin 0.3.0 instalado en los 4 config dirs, hook viejo retirado (axon/retire-dotfiles-hook). 0.3.1 (5e26825) sin cambios en hooks.'
     dependsOn: []
     dod: 'Puntero: axon/docs/task-requests/TR-plugin-hooks-guards.md §3. Falsable: rama roja y verde por hook con specimens de stdin JSON reales, rc por redirect; prueba con subagente real; verificado en vivo con claude --plugin-dir por el maestro.'
     note: 'D1/D5 de orchestration-commands.md §8. Al verificarse en vivo, el maestro retira ~/dotfiles/claude/hooks/ y su entrada en ~/.claude/settings.json.'
@@ -2744,8 +2744,9 @@ nodes:
     repo: axon
     owner: axon-mesh
     title: 'Spec del output de Workflow: reglas de unwrap + tipos canonicos (docs/specs/spec-workflow-output.md), schema declarativo (scripts/specs/workflow-output.spec.json) y parser reusable (scripts/workflow-synthesize.ts)'
-    status: in_progress
-    provisional: true
+    status: done
+    completedDate: '2026-09-03'
+    evidence: 'A (waxin): be7ac72 — spec 0.1.1 + spec.json + workflow-synthesize.ts, self-test 7/7, regen D14 equivalente en lo generado. B (axon-mesh, ejecutor + verificacion propia): merge 3d0dbf4 — tipos verify/executor, reader relajado, final-plan objeto, 19 test_cases, scripts/workflow-corpus-stats.ts; unknown 80.2 % → 21 % medido sobre 49 wf / 415 returns (objetivo <=15 % no alcanzado: 21 por diseno + one-offs; sin relajar discriminadores). Skill axon-artifacts §9 + dotfiles symlink 236ef39 + templates c68297a; plugin 0.3.1 (5e26825) instalado en 4 config dirs.'
     dependsOn: []
     dod: 'Los 3 artefactos existen; scripts/workflow-synthesize.ts aplicado al workflow actual produce output equivalente (comparacion pegada); pendiente anotado en plugin/agents/axon-v2.md.'
     note: >-
