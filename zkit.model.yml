@@ -2710,9 +2710,11 @@ nodes:
     repo: axon
     owner: axon-mesh
     title: 'status --strict debe fallar (rc=2) con dependsOn unresolved y con ciclos: hoy cuenta solo governance y devuelve rc=0; el pre-flight de axon push lo hereda'
-    status: in_progress
+    status: done
+    completedDate: '2026-09-03'
     dependsOn: []
     dod: 'Falsable: con un dependsOn a un id inexistente y con un ciclo de 2 nodos, axon status --strict devuelve rc=2 y nombra el defecto; modelo sano rc=0; graph --strict sigue rc=2 (no regresión); push test: modelo limpio + unresolved → failed=strict. Tests rojo/verde en packages/cli.'
+    evidence: 'CERRADO 2026-09-03, merge 7199096 en axon master (lane sib/strict-unresolved: 2e8008c rojo, e60e6b6 fix, eda0542 docs, 1d86435 schema MCP). Verificado por axon-mesh con specimenes propios contra el HEAD mergeado: status --strict sano rc=0, unresolved rc=2, ciclo rc=2; structure.unresolved en el JSON; graph --strict sin regresion; bun test packages/mcp 81 pass 0 fail. Hallazgo colateral cerrado en la misma lane: statusJsonView con structure rompia el outputSchema estricto de la tool MCP query (McpError -32602); el ejecutor PARO en el candado del TR en vez de improvisar y el maestro autorizo la extension aditiva.'
     note: 'Encontrado 2026-09-03 por axon-mesh perturbando el ledger. Corrección 2026-09-03 tras re-medir: graph --strict YA falla (rc=2) con unresolved y ciclos — la nota inicial lo mezclaba con graph sin --strict, que devuelve rc=0 por diseño. El ciego es status --strict (problems = solo violations, status.ts:80), y push.ts:399 usa runStatus como check SSOT → el guard de push no ve refs rotas ni ciclos. TR: axon/docs/task-requests/TR-strict-unresolved.md. owner/title/dod/note editados a mano (el CLI no escribe esos campos: axon/program-mode-schema).'
 
   - id: axon/agent2agent-tool-sync
