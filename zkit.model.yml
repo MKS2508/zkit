@@ -2708,12 +2708,12 @@ nodes:
   - id: axon/strict-fails-on-unresolved
     track: cross
     repo: axon
-    owner: 'por asignar'
-    title: 'status --strict y graph deben fallar (rc distinto de 0) con un dependsOn unresolved: hoy lo listan y devuelven rc=0'
-    status: pending
+    owner: axon-mesh
+    title: 'status --strict debe fallar (rc=2) con dependsOn unresolved y con ciclos: hoy cuenta solo governance y devuelve rc=0; el pre-flight de axon push lo hereda'
+    status: in_progress
     dependsOn: []
-    dod: 'Falsable: con un dependsOn apuntando a un id inexistente, axon graph y axon status --strict devuelven rc distinto de 0 y nombran el id; con el modelo sano, rc=0. Test rojo/verde en packages/cli.'
-    note: 'Encontrado 2026-09-03 por axon-mesh al perturbar el ledger tras insertar los nodos axon/*: graph imprimía "1 unresolved" y rc=0; status --strict rc=0. Guard que no puede fallar = verde falso (P0 fiabilidad).'
+    dod: 'Falsable: con un dependsOn a un id inexistente y con un ciclo de 2 nodos, axon status --strict devuelve rc=2 y nombra el defecto; modelo sano rc=0; graph --strict sigue rc=2 (no regresión); push test: modelo limpio + unresolved → failed=strict. Tests rojo/verde en packages/cli.'
+    note: 'Encontrado 2026-09-03 por axon-mesh perturbando el ledger. Corrección 2026-09-03 tras re-medir: graph --strict YA falla (rc=2) con unresolved y ciclos — la nota inicial lo mezclaba con graph sin --strict, que devuelve rc=0 por diseño. El ciego es status --strict (problems = solo violations, status.ts:80), y push.ts:399 usa runStatus como check SSOT → el guard de push no ve refs rotas ni ciclos. TR: axon/docs/task-requests/TR-strict-unresolved.md. owner/title/dod/note editados a mano (el CLI no escribe esos campos: axon/program-mode-schema).'
 
   - id: axon/agent2agent-tool-sync
     track: cross
