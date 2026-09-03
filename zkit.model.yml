@@ -2711,6 +2711,17 @@ nodes:
     dod: 'Falsable: con un dependsOn apuntando a un id inexistente, axon graph y axon status --strict devuelven rc distinto de 0 y nombran el id; con el modelo sano, rc=0. Test rojo/verde en packages/cli.'
     note: 'Encontrado 2026-09-03 por axon-mesh al perturbar el ledger tras insertar los nodos axon/*: graph imprimía "1 unresolved" y rc=0; status --strict rc=0. Guard que no puede fallar = verde falso (P0 fiabilidad).'
 
+  - id: axon/agent2agent-tool-sync
+    track: cross
+    repo: axon
+    owner: 'por asignar'
+    title: 'Habilitar bien agent2agent como canal: tool-lists de los agentes sincronizadas con el broker (SpawnWraith, no SpawnPeer) y spawn de wraith desde CLI'
+    status: pending
+    provisional: true
+    dependsOn: []
+    dod: 'Sin TR escrito aun (XR-002 §1.3, axon-coordination SKILL.md §2.2). Falsable cuando exista: ningun agente global lista SpawnPeer; un wraith se lanza desde axon y recibe un mensaje.'
+    note: 'Hasta que cierre, el canal de coordinacion es fichero + tmux (lock waxin 27-ago). Referenciado por TR-program-coordination §2.6.'
+
 
 
 evidence:
