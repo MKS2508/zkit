@@ -77,9 +77,37 @@ repos:
     ssot: 'sin ledger propio (0 tests, sin CI); sus nodos del programa viven aquí'
     role: 'framework Elysia (core+db+host) que consumen cloudreve-mirror (hoy por tarballs a mano) y mesh (por decidir el alcance); supersede a consumer-bus en esta familia; séptimo repo desde 2026-09-03 por lock/spire-en-el-programa'
 
+  - id: axon
+    path: '/Volumes/KODAK1TB/REPOS y PROYECTOS/axon'
+    remote: 'MKS2508/axon'
+    ssot: null
+    role: 'herramienta de orquestación del programa — core/CLI/MCP/SDK del roadmap, hooks de Claude Code y comandos /axon:*; sin roadmap propio (es la herramienta, no un consumidor); sus nodos del programa viven aquí. Consumido por todas las sesiones axon de los demás repos.'
+
+  - id: conduit
+    path: '/Volumes/KODAK1TB/REPOS y PROYECTOS/nodejs-bun/conduit'
+    remote: 'MKS2508/conduit'
+    ssot: null
+    role: 'CLI de upload; motor de chunks a extraer como paquete TS del core (lock/conduit-motor-al-core), Zig muerto a retirar (conduit/retire-dead-zig); sin ledger propio (sin .claude/, sin CI, sin handoffs — verificado 2026-09-03), sus nodos del programa viven aquí. Consumido por mesh (mesh/consume-chunk-engine) y cloudreve-mirror.'
+
+  - id: dotfiles
+    path: '/Users/mks/dotfiles'
+    remote: 'MKS2508/dotfiles'
+    ssot: null
+    role: 'config global de Claude Code (agents/skills/hooks/commands compartidos por los 4 provider dirs) + ~/.githooks + CLI siblings (claude-tmux). Checkout ÚNICO sin ramas, compartido por varias sesiones a la vez: editar solo por path explícito, nunca stash/reset/checkout -b/add -A.'
+
 
 
 lanes:
+  - id: axon-mesh
+    session: 'mesh (axon maestro cross-repo)'
+    model: anthropic
+    owns: []
+    note: >-
+      Maestro del modo wizard (no posee repos). Desde 2026-09-03 despacha
+      ejecutores nativos sobre axon (worktrees sib/<slug>) y dotfiles
+      (checkout único, solo paths propios) para los nodos axon/* de
+      orquestación; verifica y mergea él mismo. Los owners de nodos que
+      digan axon-mesh son suyos.
   - id: axon1
     session: hyperdiff
     model: opus
@@ -2517,6 +2545,160 @@ nodes:
     dependsOn: [spire/publicable-npm]
     dod: 'Decisión D-0xx en mesh/roadmap.spec.yml con el alcance (qué paquetes de spire, qué se queda en el Elysia propio del hub) y la migración correspondiente, solo cuando spire/publicable-npm esté done.'
     note: 'lock/spire-en-el-programa · lock/mesh-en-el-programa. Nota de q1: "mesh va a consumir varias cosas de aquí: Spire, los bindings, conduit".'
+
+  - id: axon/program-mode-schema
+    docs: [axon/docs/task-requests/TR-program-mode-schema.md]
+    track: cross
+    repo: axon
+    owner: 'por asignar'
+    title: 'Schema aditivo en axon-core para modo cross-repo: axonScope, Repo[], statusVocabulary, Lane/FleetEntry alineados con la forma real de zkit; add-node/set-node ganan flags para track/repo/owner/dod/note'
+    status: pending
+    dependsOn: []
+    dod: 'Puntero: axon/docs/task-requests/TR-program-mode-schema.md §3. Falsable: axon status --strict rc=0 sin diff en mesh/zkit/styx/hyperdiff tras el cambio (snapshot byte a byte); add-node --repo/--owner/--track/--dod/--note escriben lo que hoy exige edición manual.'
+    note: 'D3/D4 de axon/docs/proposals/2026-09-03-orchestration-commands.md. Registrado 2026-09-03 por axon-mesh; los 13 nodos axon/* se insertaron a mano porque el CLI no escribe track/repo/owner/dod/note — ese hueco es un ítem del DoD de este nodo.'
+
+  - id: axon/program-coordination
+    docs: [axon/docs/task-requests/TR-program-coordination.md]
+    track: cross
+    repo: axon
+    owner: 'por asignar'
+    title: 'cross-repo.links (view derivado del ledger) + axon program watch/link-sync: validación del DAG cross-repo'
+    status: pending
+    dependsOn: [axon/program-mode-schema]
+    dod: 'Puntero: axon/docs/task-requests/TR-program-coordination.md §3. Falsable: axon program watch --once rc=0 con 2 cross-repo.links válidos; rc distinto de 0 y legible con uno corrupto.'
+    note: >-
+      El transporte cross-machine del TR original (notifies: agent2agent,
+      program.subscribe, program.state-changed) chocaba con axon-coordination
+      SKILL.md §2.2 y la enmienda XR-002 §1.3 (canal narrativo fichero+tmux,
+      sin wraiths). Reescrito 2026-09-03: el watcher local fs.watch se queda;
+      el notify cross-machine pasa a axon coord append (axon/coord-cli) y
+      queda fuera de scope de esta lane. Ver TR §6.5.
+
+  - id: axon/handoff-as-boot-artifact
+    docs: [axon/docs/task-requests/TR-handoff-as-boot-artifact.md]
+    track: cross
+    repo: axon
+    owner: 'por asignar'
+    title: 'Spec durable del handoff como artefacto de boot: 5 triggers, 3 ubicaciones, estructura, compat legacy'
+    status: pending
+    dependsOn: []
+    dod: 'Puntero: axon/docs/task-requests/TR-handoff-as-boot-artifact.md §2. Falsable: sección canónica en axon-v2.md + handoffs sin frontmatter siguen parseando (warning, no error).'
+    note: 'El bullet de DoD "axon status --handoffs" queda absorbido por axon/boot-json (orchestration-commands.md §7) — no reimplementar aquí.'
+
+  - id: axon/global-githooks-push-guard
+    docs: [axon/docs/task-requests/TR-global-githooks-push-guard.md, axon/docs/task-requests/TR-global-githooks-push-guard.plan.md]
+    track: cross
+    repo: dotfiles
+    owner: axon-mesh
+    title: 'Guard de push global (AXON_PUSH_OK) + ~/.githooks versionados en dotfiles: commit-msg (trailers) y pre-push (main/master)'
+    status: done
+    completedDate: '2026-09-03'
+    dependsOn: []
+    dod: 'Puntero: axon/docs/task-requests/TR-global-githooks-push-guard.md §3. Falsable: trailer Claude-Session/Co-Authored-By en commit-msg -> rc=1; AXON_PUSH_OK=1 git push a main/master -> rc=0; sin la var -> rc=1; tests/run.sh rc=0.'
+    note: 'D2 de orchestration-commands.md §8. TR físicamente en axon/docs/task-requests/ aunque repo: dotfiles (convención: la orquestación cross-repo se documenta en la herramienta).'
+
+  - id: axon/push-cli
+    docs: [axon/docs/task-requests/TR-axon-push-cli.md, axon/docs/task-requests/TR-axon-push-cli.plan.md]
+    track: cross
+    repo: axon
+    owner: axon-mesh
+    title: 'axon push --ok "<cita>": pre-flight (rango, trailers vía commit-msg guard, secretos, status --strict, gen --check) + AXON_PUSH_OK=1 al invocar git + log XDG'
+    status: in_progress
+    dependsOn: []
+    dod: 'Puntero: axon/docs/task-requests/TR-axon-push-cli.md §3. Falsable: axon push sin --ok -> rc distinto de 0; con --ok y pre-flight sucio -> rc distinto de 0 con razón; limpio -> push con AXON_PUSH_OK=1 y línea en el log.'
+    note: 'D2 de orchestration-commands.md §8; junto con axon/global-githooks-push-guard cierra D2. Overrides del maestro al final del .plan.md (sin campo genOut; docs en 02-cli.md).'
+
+  - id: axon/plugin-hooks-guards
+    docs: [axon/docs/task-requests/TR-plugin-hooks-guards.md, axon/docs/task-requests/TR-plugin-hooks-guards.plan.md]
+    track: cross
+    repo: axon
+    owner: axon-mesh
+    title: 'Guards de Claude Code en el plugin axon (0.3.0): redirect-report-write, deny-credential-read, require-report, enforce-read-only'
+    status: in_progress
+    dependsOn: []
+    dod: 'Puntero: axon/docs/task-requests/TR-plugin-hooks-guards.md §3. Falsable: rama roja y verde por hook con specimens de stdin JSON reales, rc por redirect; prueba con subagente real; verificado en vivo con claude --plugin-dir por el maestro.'
+    note: 'D1/D5 de orchestration-commands.md §8. Al verificarse en vivo, el maestro retira ~/dotfiles/claude/hooks/ y su entrada en ~/.claude/settings.json.'
+
+  - id: axon/dispatch-contract-file
+    docs: [axon/docs/task-requests/TR-dispatch-contract-file.md]
+    track: cross
+    repo: axon
+    owner: 'por asignar'
+    title: 'Contrato de dispatch como fichero .tmp/dispatch/<unit>.json (schema axon-dispatch/1), leído por require-report/enforce-read-only y por siblings verify'
+    status: pending
+    dependsOn: [axon/plugin-hooks-guards]
+    dod: 'Puntero: axon/docs/task-requests/TR-dispatch-contract-file.md §3. Falsable: contrato inválido (campo obligatorio ausente, role fuera de enum, path relativo) -> rechazado con error legible, nunca aceptado a medias.'
+    note: 'D4 de orchestration-commands.md §8.'
+
+  - id: axon/plugin-bootstrap-skill
+    docs: [axon/docs/task-requests/TR-plugin-bootstrap-skill.md]
+    track: cross
+    repo: axon
+    owner: 'por asignar'
+    title: '/axon:bootstrap --role <executor|decomposer|verifier|researcher> [<unit>]: primer mensaje de sibling/agente de rol, vía initialPrompt o skills: preload'
+    status: pending
+    dependsOn: [axon/dispatch-contract-file]
+    dod: 'Puntero: axon/docs/task-requests/TR-plugin-bootstrap-skill.md §3. Falsable: los 3 hechos de su §2.4 verificados empíricamente con comando + rc, no con la doc oficial.'
+    note: 'D4 de orchestration-commands.md §8.'
+
+  - id: axon/agents-preload-skills
+    docs: [axon/docs/task-requests/TR-agents-preload-skills.md]
+    track: cross
+    repo: dotfiles
+    owner: 'por asignar'
+    title: 'Preload skills: en los agentes globales de dotfiles (task-executor, task-decomposer, pythia, builder-*) — executor-contract cargado por construcción'
+    status: pending
+    dependsOn: [axon/plugin-bootstrap-skill]
+    dod: 'Puntero: axon/docs/task-requests/TR-agents-preload-skills.md §3. Falsable: agente con skills: que nombra una skill inexistente arranca sin error y sin la skill (verificado leyendo el contexto, no el frontmatter).'
+    note: 'D4 de orchestration-commands.md §8; TR físicamente en axon/docs/task-requests/ aunque repo: dotfiles.'
+
+  - id: axon/siblings-bootstrap-launch
+    docs: [axon/docs/task-requests/TR-siblings-bootstrap-launch.md]
+    track: cross
+    repo: dotfiles
+    owner: 'por asignar'
+    title: 'siblings up escribe el contrato de dispatch y arranca el agente de rol solo; sib_ref_prompt_text se borra'
+    status: pending
+    dependsOn: [axon/dispatch-contract-file, axon/plugin-bootstrap-skill]
+    dod: 'Puntero: axon/docs/task-requests/TR-siblings-bootstrap-launch.md §3. Falsable: siblings up con --tr inexistente o sin axon en PATH falla ANTES de crear worktree/sesión, con mensaje que nombra la causa.'
+    note: 'D4 de orchestration-commands.md §8; TR físicamente en axon/docs/task-requests/ aunque repo: dotfiles.'
+
+  - id: axon/boot-json
+    track: cross
+    repo: axon
+    owner: 'por asignar'
+    title: 'axon boot --json [--brief]: agrega config + handoff más reciente + canal + ledger resumido + rc de guards + lanes vivas + git por repo del programa'
+    status: pending
+    provisional: true
+    dependsOn: [axon/dispatch-contract-file]
+    dod: 'Sin TR escrito aún (orchestration-commands.md §5). Falsable cuando exista: axon boot --json --brief <= 20 líneas, tope 10.000 chars (hooks.md:913).'
+    note: >-
+      Absorbe el DoD "axon status --handoffs" de axon/handoff-as-boot-artifact
+      (orchestration-commands.md §7). Degrada con gracia sin el schema aditivo
+      de axon/program-mode-schema — no es dependsOn duro, solo mejora cuando
+      aterrice.
+
+  - id: axon/coord-cli
+    track: cross
+    repo: axon
+    owner: 'por asignar'
+    title: 'axon coord append <TIPO> @dest — texto: valida tipo/campos obligatorios del canal v2, append bajo la sección propia'
+    status: pending
+    provisional: true
+    dependsOn: []
+    dod: 'Sin TR escrito aún (orchestration-commands.md §5). Falsable cuando exista: TIPO fuera de la tabla de axon-coordination SKILL.md §2.2 -> rechazada; válida -> append con timestamp bajo la sección correcta.'
+    note: 'Transporte correcto para el notify cross-machine que axon/program-coordination dejó fuera de scope.'
+
+  - id: axon/plugin-skills-commands
+    track: cross
+    repo: axon
+    owner: 'por asignar'
+    title: '8 skills-como-comando /axon:* (boot, dispatch, verify, coord, reconcile, prior-art, flush, handoff) en el plugin'
+    status: pending
+    provisional: true
+    dependsOn: [axon/plugin-bootstrap-skill, axon/dispatch-contract-file, axon/boot-json, axon/coord-cli]
+    dod: 'Sin TR escrito aún (orchestration-commands.md §5). Falsable cuando exista: sustituye a los comandos fantasma markers/prior-art citados en axon-v2.md sin implementación.'
+    note: 'orchestration-commands.md §3.4 (tabla completa de los 8 comandos).'
 
 
 
