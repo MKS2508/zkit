@@ -218,14 +218,9 @@ locks:
       LOS TRES QUE MOLDEAN el diseno por dogfood (lock previo, se reafirma):
       mks-agentics, styx, hyperdiff. El resto consume.
 
-      RECONCILIACION 2026-09-03 (axon maestro, XR-002): "conduit formara parte de
-      styx" y lock/conduit-motor-al-core NO se contradicen, se leen juntos: el
-      motor de chunks se publica como paquete npm (@mks2508/chunk-engine) desde
-      donde viva conduit; si conduit se absorbe en styx, el paquete se publica
-      desde styx y sus consumidores (mesh, cloudreve-mirror, el propio CLI) no
-      cambian de import. La frontera es el paquete, no el repo. Detalle en
-      conduit/docs/task-requests/TR-chunk-engine.plan.md (Consumidores) y en
-      mesh/docs/decisions/xr-002-cross-repo-wizard-2026-09-03.md.
+      ENMENDADO 2026-09-03 por lock/conduit-motor-al-core (2) y (4): conduit SIGUE
+      como repo y styx NO es su destino (consumidor opcional). Leer aquella clausula
+      antes de citar la frase "conduit formara parte de styx".
   - id: lock/zkit-prioridad-cross-repo
     date: '2026-08-28'
     quote: 'el trabajo de hacer zkit pasa a ser prioridad CROSS REPO'
