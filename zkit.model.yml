@@ -2554,7 +2554,7 @@ nodes:
     title: 'Schema aditivo en axon-core para modo cross-repo: axonScope, Repo[], statusVocabulary, Lane/FleetEntry alineados con la forma real de zkit; add-node/set-node ganan flags para track/repo/owner/dod/note'
     status: pending
     dependsOn: []
-    dod: 'Puntero: axon/docs/task-requests/TR-program-mode-schema.md §3. Falsable: axon status --strict rc=0 sin diff en mesh/zkit/styx/hyperdiff tras el cambio (snapshot byte a byte); add-node --repo/--owner/--track/--dod/--note escriben lo que hoy exige edición manual.'
+    dod: 'Puntero: axon/docs/task-requests/TR-program-mode-schema.md §3. Falsable: axon status --strict rc=0 sin diff en mesh/zkit/styx/hyperdiff tras el cambio (snapshot byte a byte); add-node --repo/--owner/--track/--dod/--note escriben lo que hoy exige edición manual; add-node acepta los valores de statusVocabulary del modelo (hoy rechaza pending, que este ledger usa en 10+ nodos, y solo admite queued/in_progress/done/conditional/vision-locked).'
     note: 'D3/D4 de axon/docs/proposals/2026-09-03-orchestration-commands.md. Registrado 2026-09-03 por axon-mesh; los 13 nodos axon/* se insertaron a mano porque el CLI no escribe track/repo/owner/dod/note — ese hueco es un ítem del DoD de este nodo.'
 
   - id: axon/program-coordination
@@ -2593,6 +2593,7 @@ nodes:
     title: 'Guard de push global (AXON_PUSH_OK) + ~/.githooks versionados en dotfiles: commit-msg (trailers) y pre-push (main/master)'
     status: done
     completedDate: '2026-09-03'
+    evidence: 'dotfiles master a10db2b, 676163d, 0c773ae, 444e0da (sin pushear). tests/run.sh 13/13 rc=0; perturbación en vivo por el hooksPath global (~/.githooks): push a main sin var rc=1, con AXON_PUSH_OK=1 rc=0, rama feat rc=0, commit con trailer rc=1. Verificado por axon-mesh 2026-09-03, no por el ejecutor.'
     dependsOn: []
     dod: 'Puntero: axon/docs/task-requests/TR-global-githooks-push-guard.md §3. Falsable: trailer Claude-Session/Co-Authored-By en commit-msg -> rc=1; AXON_PUSH_OK=1 git push a main/master -> rc=0; sin la var -> rc=1; tests/run.sh rc=0.'
     note: 'D2 de orchestration-commands.md §8. TR físicamente en axon/docs/task-requests/ aunque repo: dotfiles (convención: la orquestación cross-repo se documenta en la herramienta).'
@@ -2699,6 +2700,16 @@ nodes:
     dependsOn: [axon/plugin-bootstrap-skill, axon/dispatch-contract-file, axon/boot-json, axon/coord-cli]
     dod: 'Sin TR escrito aún (orchestration-commands.md §5). Falsable cuando exista: sustituye a los comandos fantasma markers/prior-art citados en axon-v2.md sin implementación.'
     note: 'orchestration-commands.md §3.4 (tabla completa de los 8 comandos).'
+
+  - id: axon/strict-fails-on-unresolved
+    track: cross
+    repo: axon
+    owner: 'por asignar'
+    title: 'status --strict y graph deben fallar (rc distinto de 0) con un dependsOn unresolved: hoy lo listan y devuelven rc=0'
+    status: pending
+    dependsOn: []
+    dod: 'Falsable: con un dependsOn apuntando a un id inexistente, axon graph y axon status --strict devuelven rc distinto de 0 y nombran el id; con el modelo sano, rc=0. Test rojo/verde en packages/cli.'
+    note: 'Encontrado 2026-09-03 por axon-mesh al perturbar el ledger tras insertar los nodos axon/*: graph imprimía "1 unresolved" y rc=0; status --strict rc=0. Guard que no puede fallar = verde falso (P0 fiabilidad).'
 
 
 
