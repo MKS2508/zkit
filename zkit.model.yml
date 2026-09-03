@@ -217,6 +217,15 @@ locks:
 
       LOS TRES QUE MOLDEAN el diseno por dogfood (lock previo, se reafirma):
       mks-agentics, styx, hyperdiff. El resto consume.
+
+      RECONCILIACION 2026-09-03 (axon maestro, XR-002): "conduit formara parte de
+      styx" y lock/conduit-motor-al-core NO se contradicen, se leen juntos: el
+      motor de chunks se publica como paquete npm (@mks2508/chunk-engine) desde
+      donde viva conduit; si conduit se absorbe en styx, el paquete se publica
+      desde styx y sus consumidores (mesh, cloudreve-mirror, el propio CLI) no
+      cambian de import. La frontera es el paquete, no el repo. Detalle en
+      conduit/docs/task-requests/TR-chunk-engine.plan.md (Consumidores) y en
+      mesh/docs/decisions/xr-002-cross-repo-wizard-2026-09-03.md.
   - id: lock/zkit-prioridad-cross-repo
     date: '2026-08-28'
     quote: 'el trabajo de hacer zkit pasa a ser prioridad CROSS REPO'
@@ -2396,6 +2405,7 @@ nodes:
       ORDEN respecto a exponer el cliente de quic-zig (Q6 de la interview).
 
   - id: conduit/chunk-engine
+    docs: [conduit/docs/task-requests/TR-chunk-engine.md, conduit/docs/task-requests/TR-chunk-engine.plan.md]
     track: cross
     repo: conduit
     owner: 'por asignar — lane TS (task-executor); registrado por axon cross-repo 2026-09-03'
@@ -2448,6 +2458,7 @@ nodes:
     note: 'mesh D-066 + lock/stack-quic-es-quic-zig + lock/orden-extraccion-y-cliente-en-paralelo (en paralelo con zkit/bindings-layer). Windows: hereda D-064 (Client.start usa file.poll, :1558).'
 
   - id: mesh/consume-chunk-engine
+    docs: [mesh/docs/task-requests/TR-mesh-transfer.md, mesh/docs/task-requests/mesh-transfer.plan.md]
     track: cross
     repo: mesh
     owner: 'por asignar'
@@ -2456,7 +2467,7 @@ nodes:
     dependsOn: [conduit/chunk-engine]
     dod: >-
       docs/task-requests/mesh-transfer.plan.md reescrito (su §mecanismo caduca); el hub
-      deja de acumular el fichero en RAM (ws-handler.ts:314 → :680) y de aplicar el tope
+      deja de acumular el fichero en RAM (ws-handler.ts:302 → :684; eran :314→:680 antes de mesh-auth 61397f4) y de aplicar el tope
       de 100 MiB después de comérselo (blobs/postgres.ts:39,146); el nodo usa el paquete
       con seal(key) alimentado por el ECDH de D-062; sink WS hoy, sink QUIC cuando exista
       mesh/quic-transport-adapter. Puntero: mesh/roadmap.spec.yml D-065 (RESUELTA) y D-067.
