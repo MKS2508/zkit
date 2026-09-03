@@ -2551,11 +2551,21 @@ nodes:
     track: cross
     repo: axon
     owner: 'por asignar'
-    title: 'Schema aditivo en axon-core para modo cross-repo: axonScope, Repo[], statusVocabulary, Lane/FleetEntry alineados con la forma real de zkit; add-node/set-node ganan flags para track/repo/owner/dod/note'
-    status: pending
+    title: 'El modelo declara su idioma y axon lo habla: statusVocabulary+statusSemantics (4 clases del engine), kinds[] a nivel modelo, repos/lanes/fleet/groundTruth tipados, y write path (CLI+MCP) que escribe repo/track/owner/dod/note/evidence + add-repo'
+    status: in_progress
     dependsOn: []
     dod: 'Puntero: axon/docs/task-requests/TR-program-mode-schema.md §3. Falsable: axon status --strict rc=0 sin diff en mesh/zkit/styx/hyperdiff tras el cambio (snapshot byte a byte); add-node --repo/--owner/--track/--dod/--note escriben lo que hoy exige edición manual; add-node acepta los valores de statusVocabulary del modelo (hoy rechaza pending, que este ledger usa en 10+ nodos, y solo admite queued/in_progress/done/conditional/vision-locked).'
-    note: 'D3/D4 de axon/docs/proposals/2026-09-03-orchestration-commands.md. Registrado 2026-09-03 por axon-mesh; los 13 nodos axon/* se insertaron a mano porque el CLI no escribe track/repo/owner/dod/note — ese hueco es un ítem del DoD de este nodo.'
+    note: >-
+      D3/D4 de axon/docs/proposals/2026-09-03-orchestration-commands.md. TR reescrito
+      entero el 2026-09-04 (axon/359724f) con 3 locks de waxin: L1 statusVocabulary +
+      statusSemantics -> 4 clases del engine (descartado el enum superset en core) ·
+      L2 kinds[] a nivel modelo, prefijo valido = kinds U repos[].id (descartada la
+      regex abierta y la migracion de los 68 nodos) · L3 sin campo axonScope: la
+      cross-ness se deriva de repo(from) != repo(to). Medido: `axon now` sobre ESTE
+      fichero da LISTOS 0 con 12 nodos pending listos, y `set-status x pending` da
+      rc=1 aunque la linea 204 declare ese vocabulario. Los 13 nodos axon/* y las
+      entradas de repos: se insertaron a mano porque el CLI no escribe
+      track/repo/owner/dod/note/evidence — ese hueco es el DoD de este nodo.
 
   - id: axon/program-coordination
     docs: [axon/docs/task-requests/TR-program-coordination.md]
@@ -2643,7 +2653,7 @@ nodes:
     repo: axon
     owner: 'por asignar'
     title: '/axon:bootstrap --role <executor|decomposer|verifier|researcher> [<unit>]: primer mensaje de sibling/agente de rol, vía initialPrompt o skills: preload'
-    status: pending
+    status: in_progress
     dependsOn: [axon/dispatch-contract-file]
     dod: 'Puntero: axon/docs/task-requests/TR-plugin-bootstrap-skill.md §3. Falsable: los 3 hechos de su §2.4 verificados empíricamente con comando + rc, no con la doc oficial.'
     note: 'D4 de orchestration-commands.md §8.'
