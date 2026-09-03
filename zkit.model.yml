@@ -2739,13 +2739,18 @@ nodes:
   - id: axon/workflow-output-spec
     track: cross
     repo: axon
-    owner: waxin
+    owner: axon-mesh
     title: 'Spec del output de Workflow: reglas de unwrap + tipos canonicos (docs/specs/spec-workflow-output.md), schema declarativo (scripts/specs/workflow-output.spec.json) y parser reusable (scripts/workflow-synthesize.ts)'
     status: in_progress
     provisional: true
     dependsOn: []
     dod: 'Los 3 artefactos existen; scripts/workflow-synthesize.ts aplicado al workflow actual produce output equivalente (comparacion pegada); pendiente anotado en plugin/agents/axon-v2.md.'
-    note: 'Diseno y ejecucion de waxin en paralelo (sesion propia sobre axon, 2026-09-03). Registrado por axon-mesh para que exista fuera de axon-v2.md; waxin lo cierra.'
+    note: >-
+      Paso A (spec + schema + parser + addendum) hecho por waxin y commiteado por
+      axon-mesh en axon be7ac72 tras verificar self-test 7/7 y regeneracion del wf de
+      referencia. Testigo pasado a axon-mesh el 2026-09-03. Paso B en curso: mas
+      test_cases con shapes de workflows reales, finalPlan shape explicito, link
+      desde la skill axon-artifacts.
 
 
 
