@@ -2955,6 +2955,15 @@ nodes:
     completedDate: '2026-09-04'
     dependsOn: []
 
+  - id: axon/sdk-saltado
+    repo: axon
+    track: cross
+    owner: 'por asignar'
+    dod: 'Cada consumer llega al dominio por el SDK. Falsable: grep de @mks2508/axon-core en packages/{cli,mcp}/src da 0 (con control positivo sobre el propio sdk que si debe dar hits); y el JSON de un comando por CLI y por tool MCP es identico, rompiendose los dos a la vez si se rompe el recurso del SDK.'
+    evidence: ['medido 2026-09-04: packages/cli/src importa @mks2508/axon-core 28 veces y @mks2508/axon-sdk 2; packages/mcp/src importa core 5 y sdk 1|guidelines/architecture.md:30 nombra literalmente el caso (CLI + MCP -> 5 capas Core-Bridge-SDK-Bindings-Apps sin backlinks)|precedente CORRECTO en el mismo repo: MemoryResource (sdk/src/memory-resource.ts) con subpath export ./memory lo consumen los DOS (cli/commands/{watch', ask, 'memory}.ts y mcp/src/memory.ts)|o sea: el dominio de memoria respeta la capa y el de roadmap la salta entera|sintoma que lo delata: --format json en los comandos es el sustituto de la API que falta; el maestro mismo tuvo que pipear el JSON del CLI a bun -e para analizarlo en esta sesion']
+    title: 'el SDK esta saltado 33 veces: CLI y MCP importan core directo contra la propia guideline de 5 capas del repo'
+    status: pending
+    dependsOn: []
 evidence:
   - path: '~/dotfiles/HANDOFF-zig-toolchain-inception.md'
     what: 'research del toolchain, evidencia y lo descartado'
