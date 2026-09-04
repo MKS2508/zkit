@@ -214,6 +214,59 @@ statusSemantics:
 
 # ── LOCKS de waxin. No re-abrir sin evidencia nueva. ────────────────────────
 locks:
+  - id: lock/motor-y-disciplina
+    date: '2026-09-04'
+    quote: >-
+      'hay que separar 2 cosas. en esto que estamos ahora llamando el canal, son
+      2 capas - el motor y la disciplina. 2 funcionalidades igual de importantes
+      a la hora de despachar para AXON y todos estos modos sub axon y los ejes,
+      contratos, etc. esto es lo que entra ahi en axon: axon toma las
+      funcionalidades de DISCIPLINA, definir spec de contratos en axon-artifacts,
+      etc. te voy a pasar ahora el MOTOR, otra pieza, y la que sustituye a este
+      dispatch, en parte'
+    decision: >-
+      Lo que hoy llamamos «el canal» son DOS CAPAS, igual de importantes y con
+      DUENOS DISTINTOS. Confundirlas es lo que produjo la noche del 2026-09-04.
+
+      DISCIPLINA (la posee axon): el schema del contrato de dispatch y sus
+      campos obligatorios, la spec de artefactos (axon-artifacts), el
+      executor-contract, los gates falsables, «report-to-file antes de
+      terminar», «una lane cierra con commit y merge, no con un report verde»,
+      «verificador != implementador», el reconcile contra git. Es
+      TRANSPORT-AGNOSTIC: sobrevive a cualquier motor.
+
+      MOTOR (NO lo posee axon): la entrega. Que el mensaje llegue entero al
+      receptor, el aviso, la sesion, el reintento, la confirmacion de recepcion.
+      Hoy es tmux + siblings + paste; lo sustituye el MVP de wraith, EN PARTE
+      (el contrato como fichero es disciplina y se queda).
+
+      REGLA: axon define y exige; NO implementa transporte. Cuando axon se pone
+      a inventar mecanica de entrega, es senal de que el motor esta roto, no de
+      que a axon le falte una feature.
+
+      EVIDENCIA que lo motiva (2026-09-04, medida): con el paste de tmux
+      fallando, el maestro se invento a mano un protocolo de mensajes
+      (.tmp/BOOT.md y .tmp/FIX-1..4.md + puntero de una linea), con nomenclatura
+      distinta cada vez, semantica de reintento propia y verificacion de entrega
+      ad-hoc. Funciono 4 de 4 y sobrevivio a dos compactaciones del ejecutor
+      — o sea que la FORMA era correcta (lo largo a fichero + puntero, que la
+      skill ya prescribe) pero estaba implementada en la capa equivocada, a mano
+      y sin dueno. Antes de eso, dos entregas fallaron: un paste mangled que
+      acabo en el shell (el ejecutor arranco a ciegas y escribio en master) y un
+      «Enter no registro submit, reintento 5/5».
+
+      CONSECUENCIA para los ejes (lock/ejes-de-coordinacion) y para
+      spec-coordination-axes.md: hay que partirlos por esta linea. Lo que es
+      contrato se queda en axon; lo que es entrega necesita una COSTURA para el
+      motor, no una implementacion. Hoy el spec no hace la distincion: cero
+      menciones de motor/transporte, medido.
+
+      ESTADO DE LA DOCUMENTACION cuando se lockeo: la separacion existia en DOS
+      LINEAS de la personalidad axon-v2 (§dispatch, sobre el invariante de que
+      un dispatch no esta hecho hasta que ATERRIZA: «transport-agnostic and
+      outlives the current mechanism... sibling-dispatch is the disposable
+      layer») y en ningun otro sitio — cero en sibling-dispatch, cero en
+      axon-artifacts, cero en spec-coordination-axes.md.
   - id: lock/ejes-de-coordinacion
     date: '2026-09-04'
     quote: >-
