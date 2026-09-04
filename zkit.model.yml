@@ -2944,6 +2944,16 @@ nodes:
     status: pending
     dependsOn: []
 
+  - id: axon/tooling-publicado-vs-master
+    repo: axon
+    track: cross
+    owner: 'por asignar'
+    dod: 'Cerrado. PENDIENTE al publicar: serverInfo.version sigue diciendo 0.2.2 en el repo asi que --version NO discrimina publicada vs local; y el MCP de una sesion ya arrancada sigue siendo el proceso viejo hasta reiniciarla.'
+    evidence: ['control negativo antes: axon now --model zkit.model.yml con el bin global daba EN CURSO 1 y cabecera vieja (in_progress + queued)|control positivo despues desde cwd /tmp: EN CURSO 3 + LISTOS 16 y cabecera por clases; axon dispatch list responde (comando inexistente en 0.2.2)|mecanismo: ~/.bun/install/global/node_modules/@mks2508/{axon', axon-mcp, 'axon-core} son symlinks a packages/{cli', mcp, 'core}; las 0.2.2 quedan como *.bak-0.2.2 (rollback = un mv)|hizo falta chmod +x en los dos entrypoints o el symlink daba permission denied (axon db23ffb)|axon-mcp responde a initialize con el codigo del repo']
+    title: 'axon local apunta al repo (symlink) en vez de a la 0.2.2 publicada — publish aplazado por decision de waxin'
+    status: done
+    completedDate: '2026-09-04'
+    dependsOn: []
 
 evidence:
   - path: '~/dotfiles/HANDOFF-zig-toolchain-inception.md'
