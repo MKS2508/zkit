@@ -2583,17 +2583,22 @@ nodes:
     track: cross
     repo: axon
     owner: 'por asignar'
-    title: 'cross-repo.links (view derivado del ledger) + axon program watch/link-sync: validación del DAG cross-repo'
+    title: 'axon program reconcile: el ledger deja de creerse a si mismo (done sin commit y pending ya mergeado son el mismo bug)'
     status: pending
     dependsOn: [axon/program-mode-schema]
-    dod: 'Puntero: axon/docs/task-requests/TR-program-coordination.md §3. Falsable: axon program watch --once rc=0 con 2 cross-repo.links válidos; rc distinto de 0 y legible con uno corrupto.'
+    dod: 'Puntero: axon/docs/task-requests/TR-program-coordination.md §3 (10 filas). Falsable en las dos ramas: fixture limpio rc=0; el mismo con un caracter cambiado en el hash rc=1 nombrando el nodo; y sobre el ledger REAL rc=1 con ~13 done-sin-recibo de 42 done (si sale 0 el extractor esta roto).'
     note: >-
-      El transporte cross-machine del TR original (notifies: agent2agent,
-      program.subscribe, program.state-changed) chocaba con axon-coordination
-      SKILL.md §2.2 y la enmienda XR-002 §1.3 (canal narrativo fichero+tmux,
-      sin wraiths). Reescrito 2026-09-03: el watcher local fs.watch se queda;
-      el notify cross-machine pasa a axon coord append (axon/coord-cli) y
-      queda fuera de scope de esta lane. Ver TR §6.5.
+      RESCOPEADA 2026-09-04 (lock de waxin, con medidas). Muere el sidecar
+      cross-repo.links y todo su tooling (link-sync, pre-commit, CI, watcher,
+      program_wires en MCP, wires() en SDK): aporta CERO bits nuevos sobre el
+      modelo (self=axon.config.json, edges=dependsOn + lock L3, watches[].path=
+      repos[].path) y el watcher no tiene consumidor (el MCP relee el modelo por
+      llamada, sin cache). El drift-check ledger-vs-SSOT-local tambien cae: de 8
+      repos solo zkit y styx parsean, y el ledger tiene 0 nodos con prefijo
+      styx/ -> cero pares que comprobar. Es la misma forma que plugin/
+      agent-sections, borrado el mismo dia (d250b42). Lo que si esta roto y
+      nadie mide: nada comprueba que el commit citado por un nodo done exista.
+      Ver TR §1 para las tres medidas y su control positivo.
 
   - id: axon/handoff-as-boot-artifact
     docs: [axon/docs/task-requests/TR-handoff-as-boot-artifact.md]
@@ -2755,7 +2760,7 @@ nodes:
       y 16 mas), verificado por el maestro en su propia lista de agentes.
 
   - id: axon/model-level-write-path
-    evidence: ['set-node --evidence parte por comas y convierte una frase en N entradas (medido 2026-09-03)|set-node --dod NO puede sobreescribir un escalar de bloque multilinea: reemplaza la primera linea por un scalar entrecomillado y deja huerfanas las continuaciones -> Nested mappings are not allowed in compact mappings (repro 2026-09-04 sobre axon/axon-v2-build-drift; la validacion post-escritura lo rechaza y el fichero queda intacto asi que el fallback fue Edit manual)|no existe set-model: statusSemantics del ledger se escribio a mano']
+    evidence: ['set-node --evidence parte por comas y convierte una frase en N entradas (medido 2026-09-03)|set-node --dod NO puede sobreescribir un escalar de bloque multilinea: reemplaza la primera linea y deja huerfanas las continuaciones -> Nested mappings are not allowed in compact mappings (repro 2026-09-04 sobre axon/axon-v2-build-drift; la validacion post-escritura lo rechaza y el fichero queda intacto; fallback = Edit manual)|add-node exige --id y NO acepta el id posicional que si acepta set-node (medido 2026-09-04)|no existe set-model: statusSemantics del ledger se escribio a mano|no existe axon push: el hook global pre-push lo cita en su mensaje pero el gate real es la env AXON_PUSH_OK']
     docs: []
     track: cross
     repo: axon
@@ -2929,6 +2934,15 @@ nodes:
       executor, reader relajado) con objetivo unknownPct <= 15 % medido por
       scripts/workflow-corpus-stats.ts; TR-B despachado 2026-09-03.
 
+  - id: mesh/ssot-modelo-axon
+    repo: mesh
+    track: cross
+    owner: 'por asignar'
+    dod: 'axon status --model roadmap.spec.yml rc=0 en mesh y sus phases M0-M8 + D-001..D-067 representadas como nodos sin perder el historico. Rama roja: el modelo migrado tiene que seguir fallando con --strict si un dependsOn apunta a un nodo inexistente.'
+    evidence: ['axon status --model mesh/roadmap.spec.yml rc=1: decisions[0..62].status ausente y nodes must be an array (was missing) — es phases: no nodes:|repos[].mesh.ssot ya lo decia en prosa (migracion a nodes pendiente) pero no habia nodo|de 8 repos del programa solo zkit y styx tienen SSOT parseable (medido 2026-09-04)']
+    title: 'roadmap.spec.yml de mesh es pre-axon: el tooling no puede leer el SSOT del repo donde mas se orquesta'
+    status: pending
+    dependsOn: []
 
 
 evidence:
