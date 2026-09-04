@@ -2798,12 +2798,14 @@ nodes:
       (b) el repo pasa a publico — cualquiera de las dos convierte esto en rotacion urgente.
 
   - id: axon/axon-v2-build-drift
+    evidence: ['axon d250b42 borra plugin/agent-sections (18 ficheros + build.sh); md5 de agents/axon-v2.md identico antes y despues 2c18e21c581bbf8b12c16232f8e552df|grep con control positivo: cero consumidores fuera del propio dir y ningun script escribe axon-v2.md|deriva medida: 52 lineas del addendum spec-workflow-output + frontmatter con nombres de tool viejos mcp__axon__* mcp__agent2agent__*|plugin 0.5.1 pusheado; simlinks .claude/.claude-glm/.claude-minimax/.claude-deepseek resuelven al mismo fichero de 760 lineas']
     docs: []
     track: cross
     repo: axon
     owner: axon-mesh
-    title: 'plugin/agents/axon-v2.md NO es el producto de su propio build: correr build.sh hoy REVIERTE el agente (pierde 52 lineas y los nombres de tool actuales)'
-    status: pending
+    title: 'agent-sections BORRADO: axon-v2.md es la fuente y ya no puede revertirse a si mismo'
+    status: done
+    completedDate: '2026-09-04'
     dependsOn: []
     dod: >-
       Falsable con control positivo: `bash plugin/agent-sections/build.sh` y `md5 -q
