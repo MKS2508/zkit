@@ -2773,6 +2773,28 @@ nodes:
       escribio A MANO porque add-repo existe pero no hay set-model: el hueco que
       program-mode-schema cerro para los NODOS sigue abierto un nivel mas arriba.
 
+  - id: axon/credencial-postgres-en-tests
+    docs: []
+    track: cross
+    repo: axon
+    owner: axon-mesh
+    title: 'Connection string de postgres con password en claro en 2 ficheros de test tracked (pre-existente, repo privado) — waxin decide 2026-09-04: anotar, no rotar por ahora'
+    status: deferred
+    dependsOn: []
+    dod: >-
+      Falsable cuando se decida actuar: `grep -rlE 'postgres://[a-z]+:[A-Za-z0-9]{16,}@'
+      packages --include='*.ts' | wc -l` -> 0, y los tests siguen verdes leyendo la URL de
+      env. NOTA: el grep se verifica antes con un control positivo (hoy da 2) para no
+      confundir "limpio" con "grep roto".
+    note: >-
+      Encontrado 2026-09-04 por el ejecutor de program-mode-schema al hacer head -30 sobre
+      packages/core/test/alive-doc-paths.test.ts; gestionado bien (no repitio el valor, midio
+      con contadores, no toco nada). Verificado de forma independiente por el maestro SIN
+      imprimir el valor: 2 ficheros .ts tracked en packages/core/test/, introducidos en
+      e5d48dc, presentes en origin/master; MKS2508/axon es PRIVATE (gh repo view). Decision
+      de waxin: nada por ahora. SE REABRE SOLO si (a) esa password se reusa en otro sitio, o
+      (b) el repo pasa a publico — cualquiera de las dos convierte esto en rotacion urgente.
+
   - id: axon/boot-json
     track: cross
     repo: axon
