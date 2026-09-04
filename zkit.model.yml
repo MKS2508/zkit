@@ -2818,11 +2818,12 @@ nodes:
       task-decomposer, pythia), no la disponibilidad de la skill.
 
   - id: axon/siblings-bootstrap-launch
+    evidence: ['1) paste mangled: el texto acabo en el shell (zsh: no matches found) y el ejecutor arranco a ciegas — escribio en master y borro su propio trabajo con git checkout|2) Enter no registro submit - reintento 5/5|3) siblings up TRAGO un fallo de git worktree add (fatal: rama ya usada) y aun asi reporto exito y lanzo la sesion en un directorio inexistente: falso verde en el motor|4) el worktree lo nombra <repo>-<lane>', 'asi que la lane axon-ssot-propio produjo axon-axon-ssot-propio y colisiono con el worktree preparado|5) siblings up bloquea mas de 2min y si lo matas el state store no se escribe: tmux tiene la sesion pero siblings out/prompt dicen que el sibling no existe|6) en ese caso Claude ni arranca: el pane se queda en un prompt de zsh y hay que hacer cl a mano por tx|7) tx reporta Timeout after 30s en cada envio aunque el envio funcione|CONTRASTE: cero fallos de la capa de DISCIPLINA en la misma noche — el contrato de dispatch', 'los gates falsables', 'el schema del report y report-to-file aguantaron los cuatro FIX']
     docs: [axon/docs/task-requests/TR-siblings-bootstrap-launch.md]
     track: cross
     repo: dotfiles
     owner: 'por asignar'
-    title: 'siblings up escribe el contrato de dispatch y arranca el agente de rol solo; sib_ref_prompt_text se borra'
+    title: 'el motor de despacho falla de 7 formas distintas medidas en una noche — evidencia dura para lock/motor-y-disciplina'
     status: pending
     dependsOn: [axon/dispatch-contract-file, axon/plugin-bootstrap-skill]
     dod: 'Puntero: axon/docs/task-requests/TR-siblings-bootstrap-launch.md §3. Falsable: siblings up con --tr inexistente o sin axon en PATH falla ANTES de crear worktree/sesión, con mensaje que nombra la causa.'
@@ -3077,9 +3078,9 @@ nodes:
     repo: axon
     track: cross
     owner: 'por asignar'
-    dod: 'Una lane recien creada corre bun test y typecheck y obtiene rc=0 en ambos SIN excusas documentadas. Falsable: crear un worktree limpio, correr los dos, y que ninguno necesite una nota de -esto ya estaba roto-.'
+    dod: 'Un worktree recien creado con bun install corre el CLI y bun test SIN parches manuales. Falsable: crear worktree limpio y correr axon status; hoy da Cannot find module @mks2508/axon-sdk/program y hay que symlinkear postgres a mano.'
     evidence: ['tsc --noEmit -p packages/cli da rc=1 con 10 errores PREEXISTENTES por modulos sin vendorizar (@mks2508/axon-sdk/memory', '@mks2508/axon-oracle', '@mks2508/better-logger) + 3 any en show.ts: typecheck del CLI es inservible como gate para cualquier lane|packages/core/dist se queda stale y rompe la resolucion de @mks2508/axon-core: mordio dos veces el 2026-09-04 (worktree recien creado sin dist -> el CLI ni arranca; y un build fallido dejo en master un reconcile.js que su src no tenia)|better-logger es 0.18.2-alpha.1 linkeado en master y 5.0.2 en el worktree: el mismo comando mide distinto segun donde corra|los memory tests hacen timeout de 5s contra postgres local', 'asi que bun test tampoco da un cero limpio']
-    title: 'una lane no puede sacar un baseline limpio: deps sin vendorizar, dist stale y better-logger distinto entre master y worktrees'
+    title: 'P0 para despachar: tras el merge de reconcile NINGUN worktree puede correr el CLI — importa el SDK y el SDK no compila sin postgres'
     status: pending
     dependsOn: []
 
