@@ -2681,7 +2681,17 @@ nodes:
     status: pending
     dependsOn: [axon/plugin-bootstrap-skill]
     dod: 'Puntero: axon/docs/task-requests/TR-agents-preload-skills.md §3. Falsable: agente con skills: que nombra una skill inexistente arranca sin error y sin la skill (verificado leyendo el contexto, no el frontmatter).'
-    note: 'D4 de orchestration-commands.md §8; TR físicamente en axon/docs/task-requests/ aunque repo: dotfiles.'
+    note: >-
+      D4 de orchestration-commands.md §8; TR fisicamente en axon/docs/task-requests/
+      aunque repo: dotfiles. 2026-09-04 — lock de waxin: fuente unica para las skills del
+      plugin. RESUELTO ya para executor-contract (axon/da750aa + dotfiles/d8b85a8): la
+      skill vive DENTRO del plugin y dotfiles la symlinkea, que es el patron que
+      axon-artifacts y axon-coordination ya usaban. No hace falta build.sh ni guard de
+      diff: con un symlink la deriva es imposible, no solo detectable. Verificado que
+      resuelve con el mismo md5 desde los 4 config dirs de provider (.claude, -minimax,
+      -glm, -deepseek) y control negativo en rojo. Lo que queda de esta lane es el
+      `skills:` en los agentes de ~/dotfiles/.claude/agents/ (task-executor,
+      task-decomposer, pythia), no la disponibilidad de la skill.
 
   - id: axon/siblings-bootstrap-launch
     docs: [axon/docs/task-requests/TR-siblings-bootstrap-launch.md]
@@ -2701,6 +2711,12 @@ nodes:
       que elegir: (a) `axon init` copia los agentes de rol al repo, o (b) siblings manda
       `/axon:bootstrap --role <r>` como primer mensaje explicito. Evidencia:
       mesh/.tmp/reports/mesh__plugin-bootstrap-skill-report.md §2.4.1.
+      RESPUESTA DE WAXIN (2026-09-04): que sea robusto — se comprueba que el agente es
+      accesible y se copia si hace falta, en el momento de lanzar, no en el init; "no
+      deberia ser problema". Y AVISO DE ALCANCE: el vehiculo va a cambiar, porque falta
+      muy poco para unir el dispatch al SDK de wraith. No sobre-construir el vehiculo
+      tmux: disenar contra el contrato invariante con wraith como UNA variante de
+      ejecutor, no contra el runbook de hoy.
 
   - id: axon/hook-report-path-espacios
     docs: [axon/docs/task-requests/TR-hook-report-path-espacios.md]
