@@ -2755,6 +2755,7 @@ nodes:
       y 16 mas), verificado por el maestro en su propia lista de agentes.
 
   - id: axon/model-level-write-path
+    evidence: ['set-node --evidence parte por comas y convierte una frase en N entradas (medido 2026-09-03)|set-node --dod NO puede sobreescribir un escalar de bloque multilinea: reemplaza la primera linea por un scalar entrecomillado y deja huerfanas las continuaciones -> Nested mappings are not allowed in compact mappings (repro 2026-09-04 sobre axon/axon-v2-build-drift; la validacion post-escritura lo rechaza y el fichero queda intacto asi que el fallback fue Edit manual)|no existe set-model: statusSemantics del ledger se escribio a mano']
     docs: []
     track: cross
     repo: axon
@@ -2808,10 +2809,11 @@ nodes:
     completedDate: '2026-09-04'
     dependsOn: []
     dod: >-
-      Falsable con control positivo: `bash plugin/agent-sections/build.sh` y `md5 -q
-      plugin/agents/axon-v2.md` -> el mismo hash antes y despues; y al perturbar UNA seccion
-      el hash CAMBIA (si no cambia, el gate no discrimina). Hoy: commiteado 2c18e21c vs
-      construido aa619f54.
+      Ya no hay build que revertir (d250b42). Falsable con control positivo: el grep de
+      `axon-v2.md` sobre sh/ts/json/yml da CERO y el MISMO grep con md si encuentra hits
+      (si diera cero tambien en md, el grep estaria roto). `md5 -q plugin/agents/axon-v2.md`
+      = 2c18e21c581bbf8b12c16232f8e552df identico antes y despues del borrado. Rojo futuro =
+      que reaparezca cualquier generador que escriba plugin/agents/axon-v2.md.
     note: >-
       Encontrado 2026-09-04 por el maestro al verificar M2 de hook-report-path-espacios (la
       lane NO lo causo: la deriva ya estaba en master con el build.sh viejo, medido). El
