@@ -2984,6 +2984,16 @@ nodes:
     title: 'nada obliga a que un TR cargue las convenciones del repo al que va: la causa raiz de la deuda de capas'
     status: pending
     dependsOn: []
+
+  - id: axon/taxonomia-de-modos
+    repo: axon
+    track: cross
+    owner: waxin
+    dod: 'Los modos cubren las cuatro formas que waxin enumera, con discriminador que no deja huerfano el caso (b), y con el sustrato comun intacto. Lock de waxin, no mio: la taxonomia es suya.'
+    evidence: ['enumeracion de waxin 2026-09-04: (a) multi axon entre un par de proyectos (b) multi axon de un proyecto GRANDE con varios axon per lane y cada uno ORQUESTA esa parte (c) el nuevo modo cross repo|la skill axon-coordination solo tiene tres: multi-session (N axones UN repo cero pisadas) · hermanos (cada uno dueno de SU repo sin maestro) · wizard (maestro sin repo + exactamente UN owner POR REPO)|(a)=hermanos y (c)=wizard encajan; (b) NO: en footprint es multi-session pero en estructura es wizard', 'salvo que sus owners poseen LANES no repos', 'y wizard exige literalmente un owner por repo|multi-session esta escrito como evitacion de colisiones entre pares (cero pisadas)', 'no como delegacion de orquestacion con flota propia por lane|pregunta sin responder que abre el hueco: quien arbitra cuando un cambio cruza dos lanes del mismo repo', 'y hay maestro en ese modo o no']
+    title: 'la taxonomia de modos de coordinacion tiene un hueco: un proyecto grande con un axon por lane que ORQUESTA su parte no es ninguno de los tres'
+    status: pending
+    dependsOn: []
 evidence:
   - path: '~/dotfiles/HANDOFF-zig-toolchain-inception.md'
     what: 'research del toolchain, evidencia y lo descartado'
