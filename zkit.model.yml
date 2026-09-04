@@ -2584,7 +2584,7 @@ nodes:
     repo: axon
     owner: 'por asignar'
     title: 'axon program reconcile: el ledger deja de creerse a si mismo (done sin commit y pending ya mergeado son el mismo bug)'
-    status: pending
+    status: in_progress
     dependsOn: [axon/program-mode-schema]
     dod: 'Puntero: axon/docs/task-requests/TR-program-coordination.md §3 (10 filas). Falsable en las dos ramas: fixture limpio rc=0; el mismo con un caracter cambiado en el hash rc=1 nombrando el nodo; y sobre el ledger REAL rc=1 con ~13 done-sin-recibo de 42 done (si sale 0 el extractor esta roto).'
     note: >-
@@ -2962,6 +2962,26 @@ nodes:
     dod: 'Cada consumer llega al dominio por el SDK. Falsable: grep de @mks2508/axon-core en packages/{cli,mcp}/src da 0 (con control positivo sobre el propio sdk que si debe dar hits); y el JSON de un comando por CLI y por tool MCP es identico, rompiendose los dos a la vez si se rompe el recurso del SDK.'
     evidence: ['medido 2026-09-04: packages/cli/src importa @mks2508/axon-core 28 veces y @mks2508/axon-sdk 2; packages/mcp/src importa core 5 y sdk 1|guidelines/architecture.md:30 nombra literalmente el caso (CLI + MCP -> SDK entre core y consumers sin backlinks)|guidelines/sdk-patterns.md:3 dice Resource Facade OBLIGATORIO: clases por dominio colgando de una fachada. MemoryResource es un recurso SUELTO por subpath -> tambien se desvia; y sdk-patterns.md:90 pide config discrimination para el transporte (caso CLI = direct handler) que aqui no existe: AxonSdk es HTTP y MemoryResource es local por separado|tercera ruta rota: cli/src/render.ts es el modulo de render canonico (formatReadResult da human+json) y commands/reconcile.ts se hizo pad/glifos/renderHuman propios = segunda convencion de presentacion en el mismo binario|la lane program-mode-schema (2ff9c6a', 'mia) tambien anadio add-repo.ts y cambios en mcp/server.ts core-directo: mis propias lanes estan dentro de las 33|sintoma que lo delata: --format json es el sustituto de la API que falta; el maestro tuvo que pipear el JSON del CLI a bun -e en esta misma sesion']
     title: 'el SDK esta saltado 33 veces: CLI y MCP importan core directo contra la propia guideline de 5 capas del repo'
+    status: pending
+    dependsOn: []
+
+  - id: axon/entorno-dev-no-reproducible
+    repo: axon
+    track: cross
+    owner: 'por asignar'
+    dod: 'Una lane recien creada corre bun test y typecheck y obtiene rc=0 en ambos SIN excusas documentadas. Falsable: crear un worktree limpio, correr los dos, y que ninguno necesite una nota de -esto ya estaba roto-.'
+    evidence: ['tsc --noEmit -p packages/cli da rc=1 con 10 errores PREEXISTENTES por modulos sin vendorizar (@mks2508/axon-sdk/memory', '@mks2508/axon-oracle', '@mks2508/better-logger) + 3 any en show.ts: typecheck del CLI es inservible como gate para cualquier lane|packages/core/dist se queda stale y rompe la resolucion de @mks2508/axon-core: mordio dos veces el 2026-09-04 (worktree recien creado sin dist -> el CLI ni arranca; y un build fallido dejo en master un reconcile.js que su src no tenia)|better-logger es 0.18.2-alpha.1 linkeado en master y 5.0.2 en el worktree: el mismo comando mide distinto segun donde corra|los memory tests hacen timeout de 5s contra postgres local', 'asi que bun test tampoco da un cero limpio']
+    title: 'una lane no puede sacar un baseline limpio: deps sin vendorizar, dist stale y better-logger distinto entre master y worktrees'
+    status: pending
+    dependsOn: []
+
+  - id: axon/tr-sin-guidelines
+    repo: axon
+    track: cross
+    owner: 'por asignar'
+    dod: 'Un TR no se puede declarar ready sin nombrar las convenciones del repo destino (campo en el frontmatter de axon-artifacts + carga obligatoria en el contrato del executor). Falsable: un TR sin ese campo falla la validacion; y con el campo, el executor cita en su report que las cargo.'
+    evidence: ['2026-09-04: escribi TR-program-coordination entero para el repo axon SIN cargar la skill guidelines; el resultado fue declarar MCP y SDK -fuera de scope- (arquitectura disfrazada de scope) y un segundo camino de render|el ejecutor tampoco la carga: su contrato le manda executor-contract y axon-artifacts', 'ninguna de las dos habla de capas ni de convenciones del repo|el frontmatter de axon-artifacts no tiene campo para las convenciones aplicables', 'asi que ni el decomposer ni el executor las ven|sintoma: 15 de 19 comandos usan render.ts y el unico que se hizo el suyo es el que despache hoy']
+    title: 'nada obliga a que un TR cargue las convenciones del repo al que va: la causa raiz de la deuda de capas'
     status: pending
     dependsOn: []
 evidence:
