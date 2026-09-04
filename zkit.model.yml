@@ -2653,10 +2653,24 @@ nodes:
     repo: axon
     owner: 'por asignar'
     title: '/axon:bootstrap --role <executor|decomposer|verifier|researcher> [<unit>]: primer mensaje de sibling/agente de rol, vía initialPrompt o skills: preload'
-    status: in_progress
+    status: done
+    completedDate: '2026-09-04'
     dependsOn: [axon/dispatch-contract-file]
     dod: 'Puntero: axon/docs/task-requests/TR-plugin-bootstrap-skill.md §3. Falsable: los 3 hechos de su §2.4 verificados empíricamente con comando + rc, no con la doc oficial.'
-    note: 'D4 de orchestration-commands.md §8.'
+    evidence:
+      - 'axon e7fefa7 (merge de sib/plugin-bootstrap-skill; 3 commits, solo plugin/, 197 inserciones)'
+      - 'plugin/skills/bootstrap/SKILL.md 85L + plugin/agents/axon-{executor,decomposer,verifier}.md 26/26/25L'
+      - 'mesh/.tmp/reports/mesh__plugin-bootstrap-skill-report.md (330L, 3 islas jsonc)'
+      - 'Verificado por el maestro: HEAD e6b9f30 coincide, 0 trailers, sin push, DoD mecanico re-ejecutado'
+    note: >-
+      D4 de orchestration-commands.md §8. Los 3 hechos de §2.4 medidos con canarios
+      discriminantes y control negativo en rojo: (a) `skills:` precarga en subagente
+      nativo con nombre pelado Y namespaced, en sintaxis bloque Y flow; (b) un
+      `skills:` que nombra una skill inexistente arranca igual, SIN la skill — perdida
+      silenciosa de capacidad, confirmada empiricamente; (c) desde un agente de PLUGIN
+      las 3 skills precargan. El ejecutor detecto su propio falso rojo (en el banco de
+      `--agent` fallo hasta el control positivo) y trato el banco como sospechoso en
+      vez del sujeto.
 
   - id: axon/agents-preload-skills
     docs: [axon/docs/task-requests/TR-agents-preload-skills.md]
@@ -2678,7 +2692,38 @@ nodes:
     status: pending
     dependsOn: [axon/dispatch-contract-file, axon/plugin-bootstrap-skill]
     dod: 'Puntero: axon/docs/task-requests/TR-siblings-bootstrap-launch.md §3. Falsable: siblings up con --tr inexistente o sin axon en PATH falla ANTES de crear worktree/sesión, con mensaje que nombra la causa.'
-    note: 'D4 de orchestration-commands.md §8; TR físicamente en axon/docs/task-requests/ aunque repo: dotfiles.'
+    note: >-
+      D4 de orchestration-commands.md §8; TR fisicamente en axon/docs/task-requests/
+      aunque repo: dotfiles. 2026-09-04 — PREMISA ROTA, medida: el TR:47 se apoya en que
+      `initialPrompt` auto-envie el slash, y NO dispara cuando el agente de rol se carga
+      como agente de PLUGIN (100 s, 0 tokens, 0 transcripts; Claude Code 2.1.260). El
+      MISMO fichero en <repo>/.claude/agents/ SI dispara. Antes de abrir esta lane hay
+      que elegir: (a) `axon init` copia los agentes de rol al repo, o (b) siblings manda
+      `/axon:bootstrap --role <r>` como primer mensaje explicito. Evidencia:
+      mesh/.tmp/reports/mesh__plugin-bootstrap-skill-report.md §2.4.1.
+
+  - id: axon/hook-report-path-espacios
+    docs: [axon/docs/task-requests/TR-hook-report-path-espacios.md]
+    track: cross
+    repo: axon
+    owner: axon-mesh
+    title: 'require-report bloquea lanes cuyo report SI existe: REPORT_PATH_RE trunca en el espacio de "REPOS y PROYECTOS" (guard que no puede pasar, afecta a todos los repos)'
+    status: in_progress
+    dependsOn: []
+    dod: >-
+      Puntero: axon/docs/task-requests/TR-hook-report-path-espacios.md §2. Falsable en las
+      dos ramas: path entre backticks con espacios -> se extrae entero y existsSync true;
+      report que de verdad NO existe -> SIGUE bloqueando (sin este check, "acepta cualquier
+      cosa" pasaria todos los demas); rama del contrato de dispatch (contract.ts:138) inmune,
+      sin regresion.
+    note: >-
+      Destapado 2026-09-04 por la lane plugin-bootstrap-skill al ser bloqueada con su report
+      ya en disco (23953 bytes, test -f rc=0), y reproducido de forma independiente por el
+      maestro con control positivo (el mismo texto con REPOS-y-PROYECTOS extrae el path
+      entero). Solo trunca la rama de prosa (contract.ts:171); la del contrato es inmune —
+      argumento a favor de que `axon dispatch write` sea la norma. M2 (cosmetico, aparte):
+      plugin/agents/sections/*.md se registran como agentes reales (axon:sections:_01-identity
+      y 16 mas), verificado por el maestro en su propia lista de agentes.
 
   - id: axon/boot-json
     track: cross
