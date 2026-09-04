@@ -2760,7 +2760,7 @@ nodes:
       y 16 mas), verificado por el maestro en su propia lista de agentes.
 
   - id: axon/model-level-write-path
-    evidence: ['set-node --evidence parte por comas y convierte una frase en N entradas (medido 2026-09-03)|set-node --dod NO puede sobreescribir un escalar de bloque multilinea: reemplaza la primera linea y deja huerfanas las continuaciones -> Nested mappings are not allowed in compact mappings (repro 2026-09-04 sobre axon/axon-v2-build-drift; la validacion post-escritura lo rechaza y el fichero queda intacto; fallback = Edit manual)|add-node exige --id y NO acepta el id posicional que si acepta set-node (medido 2026-09-04)|no existe set-model: statusSemantics del ledger se escribio a mano|no existe axon push: el hook global pre-push lo cita en su mensaje pero el gate real es la env AXON_PUSH_OK']
+    evidence: ['set-node --evidence parte por comas y convierte una frase en N entradas (medido 2026-09-03)|set-node --dod NO puede sobreescribir un escalar de bloque multilinea: reemplaza la primera linea y deja huerfanas las continuaciones -> Nested mappings are not allowed in compact mappings (repro 2026-09-04; la validacion post-escritura lo rechaza y el fichero queda intacto; fallback = Edit manual)|add-node exige --id y NO acepta el id posicional que si acepta set-node (medido 2026-09-04)|no existe set-model: statusSemantics del ledger se escribio a mano|CORRECCION 2026-09-04: una entrada anterior decia que axon push no existe. FALSO. Existe en packages/cli/src/commands/push.ts desde 915d4ff con 6 pre-flight checks; lo deduje del binario global que era la 0.2.2 publicada', 'sabiendo que estaba stale']
     docs: []
     track: cross
     repo: axon
