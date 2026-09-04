@@ -2992,6 +2992,16 @@ nodes:
     dod: 'Los modos cubren las cuatro formas que waxin enumera, con discriminador que no deja huerfano el caso (b), y con el sustrato comun intacto. Lock de waxin, no mio: la taxonomia es suya.'
     evidence: ['enumeracion de waxin 2026-09-04: (a) multi axon entre un par de proyectos (b) multi axon de un proyecto GRANDE con varios axon per lane y cada uno ORQUESTA esa parte (c) el nuevo modo cross repo|la skill axon-coordination solo tiene tres: multi-session (N axones UN repo cero pisadas) · hermanos (cada uno dueno de SU repo sin maestro) · wizard (maestro sin repo + exactamente UN owner POR REPO)|(a)=hermanos y (c)=wizard encajan; (b) NO: en footprint es multi-session pero en estructura es wizard', 'salvo que sus owners poseen LANES no repos', 'y wizard exige literalmente un owner por repo|multi-session esta escrito como evitacion de colisiones entre pares (cero pisadas)', 'no como delegacion de orquestacion con flota propia por lane|pregunta sin responder que abre el hueco: quien arbitra cuando un cambio cruza dos lanes del mismo repo', 'y hay maestro en ese modo o no']
     title: 'la taxonomia de modos de coordinacion tiene un hueco: un proyecto grande con un axon por lane que ORQUESTA su parte no es ninguno de los tres'
+    status: reported
+    dependsOn: []
+
+  - id: axon/zonas-en-el-tool
+    repo: axon
+    track: cross
+    owner: 'por asignar'
+    dod: '1) axon lee zones.yml (now/status --zone) y el guard track-exige-zone es del tool no de un script por repo 2) una sola fuente de globs entre zones.yml y .siblings.toml 3) el contrato lleva zone y delegatedBy 4) hook enforce-zone bloquea un Write fuera de los globs de la zona del contrato, falsable en las dos ramas 5) /axon:bootstrap carga CLAUDE.md de zona + rules + NOW-zona 6) hay comando que genera builder-<zona> desde zones.yml. Falsable: correr el tool contra styx reproduce lo que hoy hacen sus scripts bespoke.'
+    evidence: ['grep con control positivo 2026-09-04: cero referencias a .axon/ o zones.yml en packages/ del repo axon; y zone SI existe como campo del modelo (roadmap.ts:77) mas zoneEnumVersion (:315) -> el modelo versiona un enum que vive en styx/scripts/check-model.ts|prior art: styx/.axon/zones.yml lockeado 2026-07-16 particiona roadmap+contexto+paralelizacion; builder-{client', dataplane, 'services}.md con tool Agent y builder-contract cargada primero; hyperdiff/builder-git.md|el contrato de dispatch solo tiene createdBy: sin zone no se valida que un executor trabaje en su zona y sin delegatedBy no se reconstruye el arbol waxin->root->zona->executor|falta el hook enforce-zone hermano de enforce-read-only para que la frontera sea ejecutable y no prosa|zones.yml.globs y .siblings.toml.globs son dos declaraciones del mismo hecho que nadie diffea']
+    title: 'el eje de profundidad existe a mano en styx desde julio y el tool no sabe que existe: zonas, contrato con zone/delegatedBy, hook enforce-zone, bootstrap por zona'
     status: pending
     dependsOn: []
 evidence:
