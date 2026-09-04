@@ -2632,12 +2632,14 @@ nodes:
       track/repo/owner/dod/note/evidence — ese hueco es el DoD de este nodo.
 
   - id: axon/program-coordination
+    evidence: ['axon cc33930 — merge de sib/program-reconcile (11 commits). Post-merge en master: now y status rc=0 sin regresion; 33 tests pass 0 fail; reconcile rc=1 con verificados=26 hallazgos=16 informativos=38|gate falsable de la capa: romper el metodo del recurso SDK tumba a los DOS consumers (CLI is-not-a-function y la tool MCP devuelve error)|gate del payload: CLI --format json y structuredContent del MCP byte-identicos en los 7 campos compartidos (~70KB incluido byRepo)|cuatro correcciones del maestro en vuelo: no-receipt solo clase done (47 hallazgos de los que 31 eran falsos) · capas SDK/MCP y muerte del render duplicado · rc consolidado en el SDK con la apologia borrada · el SDK compone el predicado del core en vez de copiarlo|controles positivos en cada grep; un falso rojo mio corregido (mi patron matcheaba el JSDoc que documenta la regla)']
     docs: [axon/docs/task-requests/TR-program-coordination.md]
     track: cross
     repo: axon
     owner: 'por asignar'
     title: 'axon program reconcile: el ledger deja de creerse a si mismo (done sin commit y pending ya mergeado son el mismo bug)'
-    status: in_progress
+    status: done
+    completedDate: '2026-09-04'
     dependsOn: [axon/program-mode-schema]
     dod: 'Puntero: axon/docs/task-requests/TR-program-coordination.md §3 (10 filas). Falsable en las dos ramas: fixture limpio rc=0; el mismo con un caracter cambiado en el hash rc=1 nombrando el nodo; y sobre el ledger REAL rc=1 con ~13 done-sin-recibo de 42 done (si sale 0 el extractor esta roto).'
     note: >-
@@ -3056,6 +3058,16 @@ nodes:
     dod: '1) axon lee zones.yml (now/status --zone) y el guard track-exige-zone es del tool no de un script por repo 2) una sola fuente de globs entre zones.yml y .siblings.toml 3) el contrato lleva zone y delegatedBy 4) hook enforce-zone bloquea un Write fuera de los globs de la zona del contrato, falsable en las dos ramas 5) /axon:bootstrap carga CLAUDE.md de zona + rules + NOW-zona 6) hay comando que genera builder-<zona> desde zones.yml. Falsable: correr el tool contra styx reproduce lo que hoy hacen sus scripts bespoke.'
     evidence: ['grep con control positivo 2026-09-04: cero referencias a .axon/ o zones.yml en packages/ del repo axon; y zone SI existe como campo del modelo (roadmap.ts:77) mas zoneEnumVersion (:315) -> el modelo versiona un enum que vive en styx/scripts/check-model.ts|prior art: styx/.axon/zones.yml lockeado 2026-07-16 particiona roadmap+contexto+paralelizacion; builder-{client', dataplane, 'services}.md con tool Agent y builder-contract cargada primero; hyperdiff/builder-git.md|el contrato de dispatch solo tiene createdBy: sin zone no se valida que un executor trabaje en su zona y sin delegatedBy no se reconstruye el arbol waxin->root->zona->executor|falta el hook enforce-zone hermano de enforce-read-only para que la frontera sea ejecutable y no prosa|zones.yml.globs y .siblings.toml.globs son dos declaraciones del mismo hecho que nadie diffea']
     title: 'ejes de coordinacion: zonas en el MODELO (no sidecar) y todo lo demas derivado — rediseno del prototipo de styx sobre la maquinaria de este programa'
+    status: pending
+    dependsOn: []
+
+  - id: axon/telemetria-de-sesiones
+    repo: axon
+    track: cross
+    owner: 'por asignar'
+    dod: 'Existen markers estables que sobreviven al cambio de idioma y de vocabulario entre sesiones, y una metrica de uso de tools que distingue medido de no-medido. Falsable: dos transcripts del mismo tipo de trabajo escritos con vocabulario distinto producen los mismos markers; y un transcript sin la operacion NO la reporta.'
+    evidence: ['encargo de waxin 2026-09-04 marcado explicitamente como backlog|ORDEN que el exige: PRIMERO sacar claves/markers para detectar cosas porque el lenguaje difiere entre sesiones (palabras distintas y mezcla castellano-ingles); sin eso la estadistica mide ruido|SEGUNDO metricas para la parte de ingest de los embeddings de axon|TERCERO que jarvis-memory y los embeddings de mks-agentics las consuman para self-improvement sobre las herramientas', 'las sesiones y COMO LOS AGENTES USAN NUESTRAS TOOLS', 'midiendo que tal|CUARTO ir moldeando el CLI de axon en todas las operaciones que se repiten para que sean analizables|scope paraguas: mks-agentics cross todos los proyectos', 'pero muy de la mano de axon (la parte axon es la instrumentacion del CLI y el ingest)']
+    title: 'BACKLOG (no ahora): markers primero, luego estadistica de transcripts y metricas de uso de tools para que jarvis-memory y los embeddings se auto-mejoren'
     status: pending
     dependsOn: []
 evidence:
