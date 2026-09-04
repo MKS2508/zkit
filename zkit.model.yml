@@ -2730,12 +2730,14 @@ nodes:
       ejecutor, no contra el runbook de hoy.
 
   - id: axon/hook-report-path-espacios
+    evidence: ['axon f4b10d5 — merge de sib/hook-report-path (3 commits · 25 ficheros · 76 tests del hook rc=0)', 'Maestro end-to-end sobre un dir con espacios — 4 ramas: CON espacios + fichero presente rc=0 (antes bloqueaba) · CON espacios + fichero borrado rc=2 BLOQUEA · SIN espacios sin delimitar rc=0 (sin regresion P0) · SIN espacios y ausente rc=2', 'M2: agents/sections -> agent-sections; gate del ejecutor (mismo output de build.sh antes y despues del git mv) verificado por el maestro con control positivo', 'Reproduccion espontanea: el guard roto bloqueo a las 3 lanes de la sesion incluida la que lo arreglaba']
     docs: [axon/docs/task-requests/TR-hook-report-path-espacios.md]
     track: cross
     repo: axon
     owner: axon-mesh
     title: 'require-report bloquea lanes cuyo report SI existe: REPORT_PATH_RE trunca en el espacio de "REPOS y PROYECTOS" (guard que no puede pasar, afecta a todos los repos)'
-    status: in_progress
+    status: done
+    completedDate: '2026-09-04'
     dependsOn: []
     dod: >-
       Puntero: axon/docs/task-requests/TR-hook-report-path-espacios.md §2. Falsable en las
@@ -2794,6 +2796,29 @@ nodes:
       e5d48dc, presentes en origin/master; MKS2508/axon es PRIVATE (gh repo view). Decision
       de waxin: nada por ahora. SE REABRE SOLO si (a) esa password se reusa en otro sitio, o
       (b) el repo pasa a publico — cualquiera de las dos convierte esto en rotacion urgente.
+
+  - id: axon/axon-v2-build-drift
+    docs: []
+    track: cross
+    repo: axon
+    owner: axon-mesh
+    title: 'plugin/agents/axon-v2.md NO es el producto de su propio build: correr build.sh hoy REVIERTE el agente (pierde 52 lineas y los nombres de tool actuales)'
+    status: pending
+    dependsOn: []
+    dod: >-
+      Falsable con control positivo: `bash plugin/agent-sections/build.sh` y `md5 -q
+      plugin/agents/axon-v2.md` -> el mismo hash antes y despues; y al perturbar UNA seccion
+      el hash CAMBIA (si no cambia, el gate no discrimina). Hoy: commiteado 2c18e21c vs
+      construido aa619f54.
+    note: >-
+      Encontrado 2026-09-04 por el maestro al verificar M2 de hook-report-path-espacios (la
+      lane NO lo causo: la deriva ya estaba en master con el build.sh viejo, medido). El
+      fichero commiteado va POR DELANTE de sus fuentes: tiene 52 lineas mas y nombres de tool
+      distintos (mcp__plugin_axon_axon__* y mcp__wraith-local__* vs los mcp__axon__* y
+      mcp__agent2agent__* que generan las secciones). O sea que alguien edito el derivado en
+      vez de la fuente, y build.sh es hoy una trampa: quien lo corra revierte el agente sin
+      enterarse. Emparenta con la reconciliacion pendiente del axon-v2.md del plugin contra el
+      canonico de dotfiles.
 
   - id: axon/boot-json
     track: cross
