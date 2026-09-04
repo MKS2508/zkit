@@ -203,6 +203,15 @@ fleet:
 # deferred (fuera de esta pasada).
 statusVocabulary: [pending, in_progress, reported, done, blocked, designed, deferred]
 
+# Mapeo del vocabulario de ESTE ledger a las 4 clases que entiende el engine
+# (open | active | done | inert). Lo no clasificado cae en `open`; los defaults
+# (done->done, in_progress->active, conditional/vision-locked->inert) siguen vivos.
+# `reported` es active a proposito: un ejecutor que dice "hecho" NO satisface un
+# dependsOn — la frontera de confianza de la flota vive en esta linea.
+statusSemantics:
+  active: [reported]
+  inert: [deferred, blocked]
+
 # ── LOCKS de waxin. No re-abrir sin evidencia nueva. ────────────────────────
 locks:
   - id: lock/mapa-de-consumidores
@@ -2547,12 +2556,14 @@ nodes:
     note: 'lock/spire-en-el-programa · lock/mesh-en-el-programa. Nota de q1: "mesh va a consumir varias cosas de aquí: Spire, los bindings, conduit".'
 
   - id: axon/program-mode-schema
+    evidence: ['axon 2ff9c6a — merge de sib/program-mode-schema (6 commits · 27 ficheros · +1812)', 'axon/packages/core/src/models/vocabulary.ts — la autoridad nueva', 'mesh/.tmp/reports/mesh__program-mode-schema-report.md (499L · 3 islas jsonc)', 'Maestro: LISTOS del ledger 0->16 (defaults) y ->12 (con statusSemantics) — los dos numeros predichos antes de despachar', 'Maestro: ramas rojas re-ejecutadas — pending sobre styx rc=1 nombrando vocabulario y fichero · typo rc=1 · prefijo gtt rc=1 enumerando kinds y repos', 'Maestro: set de tests fallidos IDENTICO a master (10) con 42 tests mas pasando · typecheck core/cli/mcp rc=0']
     docs: [axon/docs/task-requests/TR-program-mode-schema.md]
     track: cross
     repo: axon
-    owner: 'por asignar'
+    owner: axon-mesh
     title: 'El modelo declara su idioma y axon lo habla: statusVocabulary+statusSemantics (4 clases del engine), kinds[] a nivel modelo, repos/lanes/fleet/groundTruth tipados, y write path (CLI+MCP) que escribe repo/track/owner/dod/note/evidence + add-repo'
-    status: in_progress
+    status: done
+    completedDate: '2026-09-04'
     dependsOn: []
     dod: 'Puntero: axon/docs/task-requests/TR-program-mode-schema.md §3. Falsable: axon status --strict rc=0 sin diff en mesh/zkit/styx/hyperdiff tras el cambio (snapshot byte a byte); add-node --repo/--owner/--track/--dod/--note escriben lo que hoy exige edición manual; add-node acepta los valores de statusVocabulary del modelo (hoy rechaza pending, que este ledger usa en 10+ nodos, y solo admite queued/in_progress/done/conditional/vision-locked).'
     note: >-
@@ -2740,6 +2751,27 @@ nodes:
       argumento a favor de que `axon dispatch write` sea la norma. M2 (cosmetico, aparte):
       plugin/agents/sections/*.md se registran como agentes reales (axon:sections:_01-identity
       y 16 mas), verificado por el maestro en su propia lista de agentes.
+
+  - id: axon/model-level-write-path
+    docs: []
+    track: cross
+    repo: axon
+    owner: axon-mesh
+    title: 'Cerrar los dos huecos que quedaron al usar el write path nuevo: --evidence parte por comas y despedaza prosa; no hay comando para las claves de nivel MODELO (statusSemantics, kinds, statusVocabulary)'
+    status: pending
+    provisional: true
+    dependsOn: [axon/program-mode-schema]
+    dod: >-
+      Falsable: `set-node <id> --evidence 'texto con, coma'` guarda UNA entrada, no tres
+      (flag repetible o escape); y existe un camino por tooling para escribir
+      statusSemantics/kinds en el modelo, con su rama roja (valor invalido -> rc!=0).
+    note: >-
+      Los dos se encontraron USANDO la herramienta recien mergeada, no leyendola. (a) Al
+      cerrar axon/program-mode-schema con --evidence, la primera entrada se partio en tres
+      por sus comas internas: el patron csv es correcto para --docs/--refs (paths, sin
+      comas) y equivocado para evidence (prosa). (b) statusSemantics de este ledger se
+      escribio A MANO porque add-repo existe pero no hay set-model: el hueco que
+      program-mode-schema cerro para los NODOS sigue abierto un nivel mas arriba.
 
   - id: axon/boot-json
     track: cross
