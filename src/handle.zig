@@ -147,15 +147,17 @@ pub fn HandleSlab(comptime T: type) type {
             return self.capacity - self.free_count;
         }
 
-        fn encodeHandle(gen: u16, slot: u32) u64 {
+        /// Public so a consumer that must carry the handle split (an FFI
+        /// struct `{slot, generation}`) does not re-derive the layout.
+        pub fn encodeHandle(gen: u16, slot: u32) u64 {
             return (@as(u64, gen) << 48) | @as(u64, slot);
         }
 
-        fn decodeSlot(handle: u64) u32 {
+        pub fn decodeSlot(handle: u64) u32 {
             return @truncate(handle & 0xFFFF_FFFF_FFFF);
         }
 
-        fn decodeGeneration(handle: u64) u16 {
+        pub fn decodeGeneration(handle: u64) u16 {
             return @truncate(handle >> 48);
         }
     };
@@ -296,4 +298,19 @@ test "HandleSlab: pointer type" {
 
     const ptr = slab.get(h).?;
     try std.testing.expectEqual(@as(u32, 42), ptr.value);
+}
+
+test "HandleSlab: the public layout helpers split and rebuild a live handle" {
+    var slab = try HandleSlab(u8).init(std.testing.allocator, 4);
+    defer slab.deinit();
+    const Slab = HandleSlab(u8);
+    const h1 = try slab.alloc(1);
+    slab.free(h1);
+    const h2 = try slab.alloc(2);
+    const slot = Slab.decodeSlot(h2);
+    const gen = Slab.decodeGeneration(h2);
+    try std.testing.expectEqual(slab.generations[slot], gen);
+    try std.testing.expectEqual(h2, Slab.encodeHandle(gen, slot));
+    try std.testing.expectEqual(@as(?u8, 2), slab.get(Slab.encodeHandle(gen, slot)));
+    try std.testing.expectEqual(@as(?u8, null), slab.get(Slab.encodeHandle(gen -% 1, slot)));
 }
