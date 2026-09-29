@@ -16,12 +16,16 @@
 //!     al llamador (`.evicted`) para que libere lo que posea — la versión
 //!     single-thread lo tiraba sin devolverlo, un leak para `T` con recursos.
 //!     La siguiente `pop` devuelve `.discontinuity` (contrato de
-//!     `SubscriberQueue`).
+//!     `SubscriberQueue`). El productor nunca espera ni es rechazado.
 //!   - Drenado con RESERVA (`beginDrain`/`settleDrain`): lo que el consumidor
-//!     se lleva para intentar entregar sigue contando contra la capacidad
-//!     hasta que lo liquida; lo que no pudo entregar vuelve al FRENTE en
-//!     orden. Invariante en todo instante: `len + reserved <= capacity`.
-//!     Por eso `settleDrain` nunca desborda.
+//!     no pudo entregar vuelve al FRENTE en orden.
+//!       · `.reject`: lo sacado SIGUE contando contra la capacidad hasta que
+//!         se liquida. Invariante en todo instante: `len + reserved <=
+//!         capacity`, así que `settleDrain` nunca desborda ni pierde nada.
+//!       · `.drop_oldest`: lo sacado NO bloquea al productor (lo fresco
+//!         manda). Invariante: `len <= capacity`. Si al liquidar no cabe
+//!         todo, se descartan los más viejos de lo devuelto (que son más
+//!         viejos que todo lo encolado) y se entregan al llamador.
 //!   - `close()` despierta a todos los que esperan; `wakeAll()` también, para
 //!     que un productor que espera re-mire su flag de cancelación.
 //!
@@ -58,9 +62,8 @@ pub fn BoundedQueue(comptime T: type) type {
             /// `.drop_oldest`: entró, a cambio de expulsar éste (el llamador
             /// es su dueño ahora).
             evicted: T,
-            /// No entró: `.reject` lleno, o `.drop_oldest` con todo reservado
-            /// por un drenado en curso (no se puede expulsar lo que el
-            /// consumidor tiene en la mano).
+            /// No entró: `.reject` lleno (contando lo reservado). Nunca en
+            /// `.drop_oldest`.
             full,
         };
 
@@ -173,7 +176,7 @@ pub fn BoundedQueue(comptime T: type) type {
         /// Encola; con `.reject` y la cola llena espera (sin sondeo) a que
         /// haya sitio hasta `deadline`. `cancel` se re-evalúa en cada
         /// despertar: quien lo pone a `true` debe llamar a `wakeAll()`.
-        /// Con `.drop_oldest` no espera nunca (salvo todo-reservado).
+        /// Con `.drop_oldest` no espera nunca.
         pub fn pushWait(
             self: *Self,
             item: T,
@@ -190,9 +193,7 @@ pub fn BoundedQueue(comptime T: type) type {
                         self.stats_.rejected += 1;
                         return error.Cancelled;
                     };
-                    if (self.count + self.reserved < self.buf.len or
-                        (self.overflow == .drop_oldest and self.count > 0))
-                    {
+                    if (self.overflow == .drop_oldest or self.count + self.reserved < self.buf.len) {
                         break :blk self.pushLocked(item);
                     }
                     if (!counted) {
@@ -210,24 +211,31 @@ pub fn BoundedQueue(comptime T: type) type {
         }
 
         fn pushLocked(self: *Self, item: T) PushResult {
-            if (self.count + self.reserved < self.buf.len) {
+            const room = switch (self.overflow) {
+                .reject => self.count + self.reserved < self.buf.len,
+                .drop_oldest => self.count < self.buf.len,
+            };
+            if (room) {
                 self.buf[(self.head + self.count) % self.buf.len] = item;
                 self.count += 1;
                 return .ok;
             }
-            if (self.overflow == .drop_oldest and self.count > 0) {
-                // Fuera el más viejo, dentro el nuevo al final. Físicamente
-                // siempre hay hueco: el anillo guarda `count` items y lo
-                // reservado ya salió de él (`count < buf.len`).
-                const old = self.buf[self.head];
-                self.head = (self.head + 1) % self.buf.len;
-                self.buf[(self.head + self.count - 1) % self.buf.len] = item;
-                self.discontinuity = true;
-                self.stats_.evicted += 1;
-                return .{ .evicted = old };
+            switch (self.overflow) {
+                .reject => {
+                    self.stats_.rejected += 1;
+                    return .full;
+                },
+                .drop_oldest => {
+                    // Anillo lleno (`count == buf.len >= 1`): fuera el más
+                    // viejo, dentro el nuevo al final.
+                    const old = self.buf[self.head];
+                    self.head = (self.head + 1) % self.buf.len;
+                    self.buf[(self.head + self.count - 1) % self.buf.len] = item;
+                    self.discontinuity = true;
+                    self.stats_.evicted += 1;
+                    return .{ .evicted = old };
+                },
             }
-            self.stats_.rejected += 1;
-            return .full;
         }
 
         /// Saca el más viejo sin bloquear.
@@ -295,26 +303,39 @@ pub fn BoundedQueue(comptime T: type) type {
 
         /// Liquida el drenado en curso: `held` (lo que NO se pudo entregar,
         /// en su orden original, prefijo o subconjunto ordenado de lo sacado)
-        /// vuelve al FRENTE. Siempre cabe (invariante `len + reserved <=
-        /// capacity`).
-        pub fn settleDrain(self: *Self, held: []const T) void {
-            {
+        /// vuelve al FRENTE. En `.reject` siempre cabe (invariante `len +
+        /// reserved <= capacity`) y devuelve 0. En `.drop_oldest` lo que no
+        /// quepa se descarta empezando por el más viejo de `held`: esos items
+        /// se copian a `evicted` (el llamador es su dueño; `evicted.len` debe
+        /// alcanzar `held.len`) y se devuelve cuántos.
+        pub fn settleDrain(self: *Self, held: []const T, evicted: []T) usize {
+            const dropped = blk: {
                 const h = self.mutex.acquire();
                 defer h.release();
                 std.debug.assert(held.len <= self.reserved);
                 self.reserved = 0;
                 const n = self.buf.len;
-                var i = held.len;
+                const dropped = held.len -| (n - self.count);
+                std.debug.assert(dropped == 0 or self.overflow == .drop_oldest);
+                @memcpy(evicted[0..dropped], held[0..dropped]);
+                const keep = held[dropped..];
+                var i = keep.len;
                 while (i > 0) {
                     i -= 1;
                     self.head = (self.head + n - 1) % n;
-                    self.buf[self.head] = held[i];
+                    self.buf[self.head] = keep[i];
                     self.count += 1;
                 }
+                if (dropped > 0) {
+                    self.discontinuity = true;
+                    self.stats_.evicted += dropped;
+                }
                 std.debug.assert(self.count <= n);
-            }
+                break :blk dropped;
+            };
             self.not_full.broadcast();
-            if (held.len > 0) self.not_empty.signal();
+            if (held.len > dropped) self.not_empty.signal();
+            return dropped;
         }
 
         fn takeLocked(self: *Self, out: []T, reserve: bool) usize {
@@ -372,35 +393,40 @@ test "reserva: len + reserved <= capacity en todo instante; settle devuelve al f
     // 1 en cola + 3 reservados = lleno: el productor no puede rellenar.
     try testing.expectEqual(.full, try q.push(10));
     // Se entregó sólo el 0; 1 y 2 vuelven al frente, delante del 3.
-    q.settleDrain(out[1..3]);
+    try testing.expectEqual(@as(usize, 0), q.settleDrain(out[1..3], &.{}));
     try testing.expectEqual(.ok, try q.push(10));
     const want = [_]u32{ 1, 2, 3, 10 };
     for (want) |w| try testing.expectEqual(w, q.pop().item);
 }
 
-test "drop_oldest con reserva: expulsa sólo de lo encolado y conserva el orden" {
+test "drop_oldest con reserva: lo reservado no frena al productor; al liquidar se descarta lo más viejo" {
     var q = try BoundedQueue(u32).init(testing.allocator, .{ .capacity = 4, .overflow = .drop_oldest });
     defer q.deinit();
     for (0..4) |i| _ = try q.push(@intCast(i));
     var out: [2]u32 = undefined;
     try testing.expectEqual(@as(usize, 2), q.beginDrain(&out)); // 0,1 en mano; 2,3 en cola
-    try testing.expectEqual(@as(u32, 2), (try q.push(4)).evicted); // cola: 3,4
-    try testing.expectEqual(@as(u32, 3), (try q.push(5)).evicted); // cola: 4,5
-    q.settleDrain(&out); // 0,1 vuelven: 0,1,4,5
-    const want = [_]u32{ 0, 1 };
+    // Hay sitio físico: entran sin expulsar aunque 0,1 estén reservados.
+    try testing.expectEqual(.ok, try q.push(4));
+    try testing.expectEqual(.ok, try q.push(5)); // cola: 2,3,4,5 (llena)
+    try testing.expectEqual(@as(u32, 2), (try q.push(6)).evicted); // cola: 3,4,5,6
+    // 0,1 no caben: se descartan (son lo más viejo) y vuelven al llamador.
+    var ev: [2]u32 = undefined;
+    try testing.expectEqual(@as(usize, 2), q.settleDrain(&out, &ev));
+    try testing.expectEqualSlices(u32, &.{ 0, 1 }, &ev);
     try testing.expectEqual(.discontinuity, q.pop());
-    for (want) |w| try testing.expectEqual(w, q.pop().item);
-    try testing.expectEqual(@as(u32, 4), q.pop().item);
-    try testing.expectEqual(@as(u32, 5), q.pop().item);
-    // Todo reservado: no hay nada que expulsar ⇒ .full.
-    _ = try q.push(6);
-    _ = try q.push(7);
-    _ = try q.push(8);
-    _ = try q.push(9);
-    var all: [4]u32 = undefined;
-    try testing.expectEqual(@as(usize, 4), q.beginDrain(&all));
-    try testing.expectEqual(.full, try q.push(10));
-    q.settleDrain(&.{});
+    for ([_]u32{ 3, 4, 5, 6 }) |w| try testing.expectEqual(w, q.pop().item);
+    try testing.expectEqual(@as(u64, 3), q.stats().evicted);
+
+    // Cabe una parte: se descarta sólo el exceso, desde el más viejo.
+    for (10..14) |i| _ = try q.push(@intCast(i));
+    var two: [2]u32 = undefined;
+    try testing.expectEqual(@as(usize, 2), q.beginDrain(&two)); // 10,11 en mano
+    _ = try q.push(14); // cola: 12,13,14 (1 hueco)
+    var ev1: [2]u32 = undefined;
+    try testing.expectEqual(@as(usize, 1), q.settleDrain(&two, &ev1));
+    try testing.expectEqual(@as(u32, 10), ev1[0]);
+    try testing.expectEqual(.discontinuity, q.pop());
+    for ([_]u32{ 11, 12, 13, 14 }) |w| try testing.expectEqual(w, q.pop().item);
 }
 
 test "pushWait: vence con Timeout, se cancela con wakeAll y termina con close" {
@@ -465,7 +491,7 @@ test "estrés MPSC: 4 productores bloqueantes x 5k, 1 consumidor por lotes con r
     while (got < P * N) : (round += 1) {
         const n = q.beginDrain(&batch);
         if (n == 0) {
-            q.settleDrain(&.{});
+            _ = q.settleDrain(&.{}, &.{});
             // Vacía: esperar sin sondeo al siguiente item.
             switch (try q.popWait(.never)) {
                 .item => |v| {
@@ -481,7 +507,7 @@ test "estrés MPSC: 4 productores bloqueantes x 5k, 1 consumidor por lotes con r
         const deliver = if (round % 3 == 0) n / 2 else n;
         for (batch[0..deliver]) |v| try Check.deliver(v, &last, seen);
         got += deliver;
-        q.settleDrain(batch[deliver..n]);
+        _ = q.settleDrain(batch[deliver..n], &.{});
     }
     for (ts) |t| t.join();
     for (seen) |s| try testing.expect(s);
