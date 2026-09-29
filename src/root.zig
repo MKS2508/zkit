@@ -32,6 +32,7 @@ pub const LatestValue = @import("latest_value.zig").LatestValue;
 pub const AtomicHistogram = @import("histogram.zig").AtomicHistogram;
 pub const ZeroCopyBuffer = @import("zero_copy_buffer.zig").ZeroCopyBuffer;
 pub const BufferGuard = @import("zero_copy_buffer.zig").BufferGuard;
+pub const CancelToken = @import("cancel.zig").CancelToken;
 
 // ── Capa de seguridad (styx dec-0117) ─────────────────────────────────────
 pub const safety = @import("safety.zig");
@@ -63,5 +64,6 @@ test {
     _ = @import("latest_value.zig");
     _ = @import("histogram.zig");
     _ = @import("zero_copy_buffer.zig");
+    _ = @import("cancel.zig");
     _ = @import("safety.zig");
 }

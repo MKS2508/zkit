@@ -8,7 +8,7 @@
 //! | `Handle(Tag)` / `TypedSlab` | use-after-free por handle obsoleto (generación) y confusión de handles (tipo por `Tag`) |
 //! | `Budget` / `BudgetAllocator` | memoria sin cota por sesión/usuario; leaks sin informe; contabilidad no independiente |
 //! | `fs.Root` | path traversal, symlinks que escapan, TOCTOU entre comprobar y abrir, FIFOs que bloquean |
-//! | `BoundedReader` | lecturas fuera de límites, longitudes del wire sin validar, contadores que dimensionan reservas |
+//! | `BoundedReader` / `BitReader` | lecturas fuera de límites, longitudes del wire sin validar, contadores que dimensionan reservas, códigos Exp-Golomb/uvlc con desplazamientos gigantes |
 //! | `checked` | desbordes aritméticos en offsets/longitudes (`offset + len` que da la vuelta) |
 //! | `Mutex` | unlock desde otro hilo, autodeadlock, inversión de orden de locks |
 //! | `fuzz` | parsers que hacen pánico o fugan con entradas truncadas/corruptas |
@@ -30,6 +30,7 @@ pub const fs = @import("safety/fs.zig");
 pub const BoundedReader = @import("safety/bounded_reader.zig").BoundedReader;
 pub const bounded_reader = @import("safety/bounded_reader.zig");
 pub const checked = @import("safety/checked.zig");
+pub const BitReader = @import("safety/bit_reader.zig").BitReader;
 
 pub const Mutex = @import("safety/mutex.zig").Mutex;
 pub const mutex = @import("safety/mutex.zig");
@@ -43,6 +44,7 @@ test {
     _ = @import("safety/fs.zig");
     _ = @import("safety/bounded_reader.zig");
     _ = @import("safety/checked.zig");
+    _ = @import("safety/bit_reader.zig");
     _ = @import("safety/mutex.zig");
     _ = @import("safety/fuzz.zig");
 }
