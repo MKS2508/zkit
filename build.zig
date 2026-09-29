@@ -24,6 +24,9 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
+        // watchdog/ipc llaman a libc (`std.c.*`); desde 0.17-dev la dependencia
+        // de libc tiene que declararse explícitamente en el módulo.
+        .link_libc = true,
     });
 
     // ── Tests ──────────────────────────────────────────────────────
@@ -47,6 +50,7 @@ pub fn build(b: *std.Build) void {
                 .root_source_file = b.path(src),
                 .target = target,
                 .optimize = optimize,
+                .link_libc = true,
             }),
         });
         test_step.dependOn(&b.addRunArtifact(t).step);
