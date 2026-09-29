@@ -50,14 +50,19 @@ pub fn HandleSlab(comptime T: type) type {
 
         const Self = @This();
 
+        pub const InitError = error{ InvalidParameter, OutOfMemory };
+        pub const AllocError = error{PoolFull};
+
         /// Initialize a slab with `capacity` slots.
-        pub fn init(allocator: std.mem.Allocator, capacity: u32) !Self {
+        pub fn init(allocator: std.mem.Allocator, capacity: u32) InitError!Self {
             if (capacity == 0) return error.InvalidParameter;
 
             const entries = try allocator.alloc(?T, capacity);
+            errdefer allocator.free(entries);
             @memset(entries, null);
 
             const generations = try allocator.alloc(u16, capacity);
+            errdefer allocator.free(generations);
             @memset(generations, 0);
 
             const free_list = try allocator.alloc(u32, capacity);
@@ -90,7 +95,7 @@ pub fn HandleSlab(comptime T: type) type {
         /// Generation 0 is skipped, so a live handle is never `0` and
         /// consumers may use `0` as a NULL sentinel.
         /// Returns `error.PoolFull` if no slots available.
-        pub fn alloc(self: *Self, value: T) !u64 {
+        pub fn alloc(self: *Self, value: T) AllocError!u64 {
             if (self.free_count == 0) return error.PoolFull;
             self.free_count -= 1;
             const slot = self.free_list[self.free_count];
@@ -116,17 +121,25 @@ pub fn HandleSlab(comptime T: type) type {
         ///
         /// Safe to call with an already-freed or invalid handle (no-op).
         pub fn free(self: *Self, handle: u64) void {
+            _ = self.take(handle);
+        }
+
+        /// Like `free`, but hands back the value the slot held so the caller
+        /// can release what it owns (a refcount, a buffer). `null` if the
+        /// handle was stale or invalid — nothing was freed.
+        pub fn take(self: *Self, handle: u64) ?T {
             const slot = decodeSlot(handle);
             const gen = decodeGeneration(handle);
-            if (slot >= self.capacity) return;
-            if (self.generations[slot] != gen) return;
-            if (self.entries[slot] == null) return; // Already freed.
+            if (slot >= self.capacity) return null;
+            if (self.generations[slot] != gen) return null;
+            const value = self.entries[slot] orelse return null; // Already freed.
             self.entries[slot] = null;
             // Bump generation so the handle is immediately invalidated.
             // Next alloc() of this slot will bump again, giving a fresh gen.
             self.generations[slot] +%= 1;
             self.free_list[self.free_count] = slot;
             self.free_count += 1;
+            return value;
         }
 
         /// Number of active (allocated) slots.
@@ -253,6 +266,23 @@ test "HandleSlab: stress alloc/free cycles" {
             slab.free(handles[i]);
         }
         try std.testing.expectEqual(@as(u32, 0), slab.activeCount());
+    }
+}
+
+test "HandleSlab: take returns the value exactly once" {
+    var slab = try HandleSlab(u32).init(std.testing.allocator, 2);
+    defer slab.deinit();
+    const h = try slab.alloc(7);
+    try std.testing.expectEqual(@as(?u32, 7), slab.take(h));
+    try std.testing.expectEqual(@as(?u32, null), slab.take(h));
+    try std.testing.expectEqual(@as(u32, 0), slab.activeCount());
+}
+
+test "HandleSlab: init does not leak on partial allocation failure" {
+    // Fail each of the three allocations in turn: none may leak.
+    for (0..3) |fail_index| {
+        var failing = std.testing.FailingAllocator.init(std.testing.allocator, .{ .fail_index = fail_index });
+        try std.testing.expectError(error.OutOfMemory, HandleSlab(u32).init(failing.allocator(), 4));
     }
 }
 

@@ -20,3 +20,8 @@ pub const sync = @import("sync.zig");
 pub const os = @import("os.zig");
 pub const fs = @import("fs.zig");
 pub const testing = @import("testing.zig");
+
+// ── Concurrencia (nodo zkit/handle-concurrent) ────────────────────────────
+pub const ConcurrentHandleSlab = @import("handle_concurrent.zig").ConcurrentHandleSlab;
+pub const bounded_queue = @import("bounded_queue.zig");
+pub const BoundedQueue = bounded_queue.BoundedQueue;

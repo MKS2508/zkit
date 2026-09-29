@@ -58,6 +58,8 @@ pub fn build(b: *std.Build) void {
         "src/os.zig",
         "src/fs.zig",
         "src/testing.zig",
+        "src/handle_concurrent.zig",
+        "src/bounded_queue.zig",
     }) catch @panic("OOM");
     if (tsan_canary) standalone_tests.append(b.allocator, "src/test_tsan_canary.zig") catch @panic("OOM");
 
