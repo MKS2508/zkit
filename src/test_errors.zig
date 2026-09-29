@@ -20,10 +20,10 @@ const HashErrors = error{
 
 const IoSpace = errors.ErrorSpace(IoErrors, &[_]errors.Domain{
     .{ .name = "io", .base = 1000, .entries = &[_]errors.Entry{
-        .{ .tag = "FILE_NOT_FOUND",   .message = "File not found" },
+        .{ .tag = "FILE_NOT_FOUND", .message = "File not found" },
         .{ .tag = "PERMISSION_DENIED", .message = "Permission denied" },
-        .{ .tag = "INVALID_HANDLE",   .message = "Invalid handle" },
-    }},
+        .{ .tag = "INVALID_HANDLE", .message = "Invalid handle" },
+    } },
 });
 
 test "codeOf: maps each error variant to base+ordinal" {
@@ -52,9 +52,9 @@ test "errorOf: unknown code returns null" {
 }
 
 test "messageOf: returns the correct message" {
-    try testing.expectEqualStrings("File not found",    IoSpace.messageOf(1000).?);
+    try testing.expectEqualStrings("File not found", IoSpace.messageOf(1000).?);
     try testing.expectEqualStrings("Permission denied", IoSpace.messageOf(1001).?);
-    try testing.expectEqualStrings("Invalid handle",   IoSpace.messageOf(1002).?);
+    try testing.expectEqualStrings("Invalid handle", IoSpace.messageOf(1002).?);
 }
 
 test "messageOf: unknown code returns null" {
@@ -65,14 +65,14 @@ test "messageOf: unknown code returns null" {
 
 const MultiSpace = errors.ErrorSpace(IoErrors || HashErrors, &[_]errors.Domain{
     .{ .name = "io", .base = 1000, .entries = &[_]errors.Entry{
-        .{ .tag = "FILE_NOT_FOUND",   .message = "File not found" },
+        .{ .tag = "FILE_NOT_FOUND", .message = "File not found" },
         .{ .tag = "PERMISSION_DENIED", .message = "Permission denied" },
-        .{ .tag = "INVALID_HANDLE",   .message = "Invalid handle" },
-    }},
+        .{ .tag = "INVALID_HANDLE", .message = "Invalid handle" },
+    } },
     .{ .name = "hash", .base = 2000, .entries = &[_]errors.Entry{
-        .{ .tag = "INVALID_UTF8",    .message = "Invalid UTF-8 sequence" },
+        .{ .tag = "INVALID_UTF8", .message = "Invalid UTF-8 sequence" },
         .{ .tag = "BUFFER_OVERFLOW", .message = "Buffer overflow" },
-    }},
+    } },
 });
 
 test "multi-domain: codeOf maps across domains" {
@@ -94,9 +94,9 @@ test "multi-domain: errorOf maps across domains" {
 }
 
 test "multi-domain: messageOf maps across domains" {
-    try testing.expectEqualStrings("File not found",         MultiSpace.messageOf(1000).?);
+    try testing.expectEqualStrings("File not found", MultiSpace.messageOf(1000).?);
     try testing.expectEqualStrings("Invalid UTF-8 sequence", MultiSpace.messageOf(2000).?);
-    try testing.expectEqualStrings("Buffer overflow",        MultiSpace.messageOf(2001).?);
+    try testing.expectEqualStrings("Buffer overflow", MultiSpace.messageOf(2001).?);
 }
 
 // ── TypeScript emission ────────────────────────────────────────────────────────
