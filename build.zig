@@ -30,9 +30,19 @@ pub fn build(b: *std.Build) void {
     });
 
     // ── Tests ──────────────────────────────────────────────────────
+    // `-Dtsan=true`: lane ThreadSanitizer. Todo lo que tiene hilos en zkit
+    // (sync, colas concurrentes, slab concurrente, LatestValue, histograma,
+    // ZeroCopyBuffer, safety.Mutex, BudgetAllocator) corre sus tests de
+    // estrés bajo TSAN con este flag. Canario: `-Dtsan-canary=true` añade un
+    // test con una carrera deliberada que TIENE que fallar.
+    const tsan = b.option(bool, "tsan", "Compile tests with ThreadSanitizer") orelse false;
+    const tsan_canary = b.option(bool, "tsan-canary", "Add a deliberate data race (must FAIL under -Dtsan)") orelse false;
+    const test_filters = b.option([]const []const u8, "test-filter", "Only run tests matching this filter") orelse &.{};
+
     const test_step = b.step("test", "Run zkit tests");
 
-    const standalone_tests = [_][]const u8{
+    var standalone_tests: std.ArrayList([]const u8) = .empty;
+    standalone_tests.appendSlice(b.allocator, &.{
         "src/subscriber_queue.zig",
         "src/reorder_buffer.zig",
         "src/watchdog.zig",
@@ -43,15 +53,24 @@ pub fn build(b: *std.Build) void {
         "src/test_watchdog.zig",
         "src/test_errors.zig",
         "src/ipc.zig",
-    };
-    for (standalone_tests) |src| {
+        "src/time.zig",
+        "src/sync.zig",
+        "src/os.zig",
+        "src/fs.zig",
+        "src/testing.zig",
+    }) catch @panic("OOM");
+    if (tsan_canary) standalone_tests.append(b.allocator, "src/test_tsan_canary.zig") catch @panic("OOM");
+
+    for (standalone_tests.items) |src| {
         const t = b.addTest(.{
             .root_module = b.createModule(.{
                 .root_source_file = b.path(src),
                 .target = target,
                 .optimize = optimize,
                 .link_libc = true,
+                .sanitize_thread = if (tsan) true else null,
             }),
+            .filters = test_filters,
         });
         test_step.dependOn(&b.addRunArtifact(t).step);
     }
