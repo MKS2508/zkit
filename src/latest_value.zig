@@ -145,3 +145,28 @@ test "LatestValue: 2 productores + 2 consumidores — versión y valor coherente
     try testing.expectEqual(@as(u32, 0), bad.load(.monotonic));
     try testing.expectEqual(@as(u64, 2 * N), ch.peekVersion());
 }
+
+test "LatestValue: un productor — el valor de cada snapshot es EXACTAMENTE el de su versión (TSAN)" {
+    // Con un solo productor que publica a = k en la k-ésima publicación, la
+    // versión N identifica el valor N. El defecto del original (versión leída
+    // fuera del mutex, subida tras soltarlo) entregaba el valor N+1 con la
+    // etiqueta N: esta comprobación lo caza.
+    const N = 50_000;
+    var ch = LatestValue(Sample).init(.{});
+    defer ch.deinit();
+    const Prod = struct {
+        fn run(c: *LatestValue(Sample)) void {
+            for (1..N + 1) |k| _ = c.publish(.{ .a = k, .b = k });
+        }
+    };
+    const p = try std.Thread.spawn(.{}, Prod.run, .{&ch});
+    var seen: u64 = 0;
+    var mismatches: u32 = 0;
+    while (seen < N) {
+        const s = ch.consumeSince(seen) orelse continue;
+        if (s.value.a != s.version) mismatches += 1;
+        seen = s.version;
+    }
+    p.join();
+    try testing.expectEqual(@as(u32, 0), mismatches);
+}

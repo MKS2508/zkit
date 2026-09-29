@@ -199,7 +199,10 @@ test "safety.Mutex: orden creciente permitido, inversión detectada con nombres"
     session.unlock();
     cache.unlock();
 
+    // Mismo nivel tampoco: dos locks "hermanos" no tienen orden entre sí.
+    var session2 = Mutex.init(.{ .name = "session2", .level = 20 });
     session.lock();
+    try testing.expectEqualStrings("session2", session2.lockViolation().?.order.acquiring);
     const v = cache.lockViolation().?;
     try testing.expectEqualStrings("cache", v.order.acquiring);
     try testing.expectEqualStrings("session", v.order.held);
