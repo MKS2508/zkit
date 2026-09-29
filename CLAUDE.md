@@ -87,6 +87,29 @@ sustituto de la skill.
 - Un `catch {}` que se traga un fallo de allocación es un bug, no un atajo.
   Ese fue exactamente el motivo de descartar el `HandlePool` de styx.
 
+## Tests: cómo están cableados (2026-09-29)
+
+- **Un solo binario de test raíz** (`src/root.zig`, bloque `test` con
+  `refAllDecls` + `_ = @import(...)` de cada módulo) más las suites
+  `test_*.zig` sueltas. NO añadas un binario por fichero: cada fichero arrastra
+  los tests de lo que importa y los mismos tests corrían varias veces. Módulo
+  nuevo ⇒ una línea en el bloque `test` de `root.zig`.
+- **Lanes**: `-Dtsan=true` (ThreadSanitizer) con canario
+  `-Dtsan-canary=true` que TIENE que fallar; `-Doptimize=ReleaseSafe`;
+  `zig build fuzz` (corpus; `--fuzz=N` está roto en 1893, ver README).
+- **Guards comptime** en `test/compile_errors/` + lista en `build.zig`: un
+  guard nuevo (un `@compileError`) entra con su caso que TIENE que fallar.
+- Todo lo que tiene hilos lleva un test de estrés que corre bajo TSAN; todo
+  parser, un fuzz con `zkit.safety.fuzz`.
+
+## Extracción de styx (2026-09-29, nodo `zkit/styx-extraction`)
+
+Decisión de waxin 2026-09-28 que SUPERSEDE la regla de 2 consumidores para
+styx: todo lo genérico de `styx/native/zig` sube aquí y styx borra su copia.
+Lo que subió y lo que se quedó, con veredicto por candidato, está en
+`zkit.model.yml` → `zkit/styx-extraction`. Cada port arregló el defecto
+conocido del original (listado en el commit de cada pieza).
+
 ## Al portar código desde otro repo
 
 Es un puerto, no un copy-paste:
@@ -105,7 +128,11 @@ cierto** y era lo contrario de la realidad:
 
 - **hyperdiff** depende de zkit en su `.zon` (URL+hash) y consume `HandleSlab` en
   3 slabs más `errors.ErrorSpace`. **En producción.**
-- **styx** consume `HandleSlab`, `ErrorSpace` y `TrackingAllocator`.
+- **styx** consume hoy `HandleSlab` y `TrackingAllocator` (pin `09fd8cf`). El
+  paso 2 de `zkit/styx-extraction` cablea time/sync/os/fs, las colas, el slab
+  concurrente, `ErrorSpaceWith` (tabla de `local_file.zig`) y `zkit.safety`, y
+  borra sus copias. (`ErrorSpace` NO estaba cableado en styx aunque este doc
+  lo dijera: era el nodo `cand/errorspace-styx`, en `designed`.)
 - **conduit** reimplementó `HandleSlab` y `ReorderBuffer` en vez de consumirlos, con
   un `TODO(sub-import): cuando zkit/ipc/ exista` en su fuente — y su copia no tiene
   contador de generación, o sea use-after-free por construcción. Va a entrar dentro

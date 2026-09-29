@@ -2077,7 +2077,8 @@ nodes:
     repo: zkit
     owner: axon-zkit
     title: 'Extraer primitivas de OS (relojes + Mutex/Condition sobre pthread + fs) a zkit'
-    status: designed
+    status: done
+    closedBy: 'lane zkit de la tanda 4 de styx, 2026-09-29 — feat/styx-extraction bfa6704 (time, sync, os, fs, testing.Fixture). Lado zkit; el cableado en styx es trans/wire-styx-extraction y en hyperdiff sigue siendo suyo.'
     dependsOn: [audit/hyperdiff-zkit, audit/styx]
     unblockedBy: 'audit/styx 2026-08-28 — gate Q4 ABIERTO, paridad de semantica confirmada'
     dod: >-
@@ -2592,6 +2593,145 @@ nodes:
 
 
 
+
+  # -- Pasada zkit/styx-extraction (tanda 4 de styx, 2026-09-29) -------------
+  - id: zkit/handle-concurrent
+    track: zkit
+    repo: zkit
+    owner: axon-zkit
+    title: 'HandleSlab y SubscriberQueue thread-safe (styx r44 #2 y #9, dec-0103 §2)'
+    status: done
+    dependsOn: [zkit/handle, cand/sync-primitives]
+    resolves: gt/zkit-primitives-single-threaded
+    closedBy: 'lane zkit de la tanda 4 de styx, 2026-09-29 — feat/styx-extraction 56933f3'
+    dod: >-
+      ConcurrentHandleSlab(T): mutex + lock(h) que resuelve y usa el valor con
+      el slab bloqueado (cierra el TOCTOU get -> take+free -> UAF, que un slab
+      lock-free no cierra) + drain para cerrar slabs de recursos.
+      BoundedQueue(T): version concurrente de SubscriberQueue y generalizacion
+      de PendingDeliveryQueue de styx — anillo fijo (push nunca reserva),
+      reject | drop_oldest (devuelve el expulsado), pushWait/popWait con
+      Condition y plazo monotonico (sin sondeo), wakeAll para cancelacion,
+      close, drenado con reserva (len + reserved <= capacity en todo instante).
+      HandleSlab gana take() y errdefer en init.
+    verification: >-
+      Estres 4 lectores + 2 escritores con refcounts (ConcurrentHandleSlab) y
+      MPSC 4x5k con reencolado parcial (BoundedQueue) verdes bajo -Dtsan.
+      Mutantes rojos: lock que suelta el mutex, take sin mutex (TSAN), push que
+      ignora lo reservado, settle que reencola al final, drop_oldest sin
+      discontinuidad, init sin errdefer (leak con FailingAllocator).
+
+  - id: zkit/safety
+    track: zkit
+    repo: zkit
+    owner: axon-zkit
+    title: 'Capa zkit.safety — parte 1 Zig del modelo de seguridad de styx (dec-0117)'
+    status: done
+    dependsOn: [zkit/handle-concurrent, zkit/errors-mechanism]
+    closedBy: 'lane zkit de la tanda 4 de styx, 2026-09-29 — feat/styx-extraction 7995f79, 36097dc'
+    dod: >-
+      Handle(Tag)/TypedSlab (UAF por handle imposible, confusion de handles =
+      error de compilacion), Budget/BudgetAllocator (techo anidable, contadores
+      independientes allocs/frees/pico, informe de leaks con sitio), fs.Root
+      (openat2 RESOLVE_BENEATH o recorrido O_NOFOLLOW fd a fd; .reject/.beneath,
+      require_regular, createFile O_EXCL, identidad dev/ino; path guard lexico
+      de styx local_file.zig), BoundedReader (varint QUIC, VINT EBML, sub-lectores,
+      lectura atomica) + BitReader (Exp-Golomb, uvlc), checked (Overflow /
+      OutOfBounds, checkRange sin offset+len), Mutex (dueno, orden por nivel,
+      assertHeld) y fuzz (truncados, bit-flips, sustituciones, mutaciones
+      reproducibles, puente a std.testing.fuzz).
+    verification: >-
+      zig build test verde en Debug/ReleaseSafe/ReleaseFast y -Dtsan. Tests de
+      symlink dentro/fuera/de directorio, FIFO, sustitucion de un directorio
+      intermedio por symlink tras abrir la raiz y raiz movida, con ambos
+      resolvedores. checkAllAllocationFailures limpio en BudgetAllocator.
+      Mutantes rojos: walk sin O_NOFOLLOW, openat2 sin NO_SYMLINKS, checkRange
+      envolvente, Budget sin techo, orden > en Mutex, readBytes sin limite.
+      Compile-fail en build: handles de tags distintos, TypedSlab.lock sin
+      thread_safe.
+    limits: >-
+      Lo que la capa no impone (que el consumidor no se la salte: rutas crudas,
+      pthread directo, catch {} en parsers, unreachable sobre input) es la
+      segunda capa de dec-0117: guards de build/CI en styx, paso 2.
+      Fuzz guiado por cobertura (--fuzz=N) roto en 0.17.0-dev.1893 (repro
+      standalone de 10 lineas: corrupted coverage file, pcs_len was zero).
+
+  - id: zkit/styx-extraction
+    track: zkit
+    repo: zkit
+    owner: axon-zkit
+    title: 'Subir a zkit todo lo generico de styx/native/zig (paso 1 de 2: lado zkit)'
+    status: done
+    dependsOn: [cand/sync-primitives, zkit/handle-concurrent, zkit/safety]
+    unblockedBy: >-
+      waxin 2026-09-28 (SUPERSEDE la regla de 2 consumidores para styx):
+      «extraer a zkit TODO lo generico de styx [...] styx lo consume y BORRA su
+      copia (reducir LOC medido), bump pin zkit». ErrorSpace SI se usa:
+      reemplaza la tabla manual de local_file.zig.
+    closedBy: 'lane zkit de la tanda 4 de styx, 2026-09-29 — feat/styx-extraction (candidato: tag styx-extraction-rc1)'
+    gate:
+      items:
+        - { id: ZX1, verdict: pass, class: suite-verde, evidenceRef: ['zig build test: 1 binario raiz + 4 suites + 6 compile-fail, exit 0'], verifiedBy: 'lane zkit 2026-09-29 (a verificar por el integrador)' }
+        - { id: ZX2, verdict: pass, class: tsan-verde-y-canario-rojo, evidenceRef: ['zig build test -Dtsan=true exit 0', 'zig build test -Dtsan=true -Dtsan-canary=true exit 1 con "ThreadSanitizer: data race" en test_tsan_canary.zig'] }
+        - { id: ZX3, verdict: pass, class: release-safe, evidenceRef: ['zig build test -Doptimize=ReleaseSafe exit 0; ReleaseFast 2 skipped (checks de safety.Mutex)'] }
+        - { id: ZX4, verdict: pass, class: errorspace-compat-byte-a-byte, evidenceRef: ['src/test_errors_space_v2.zig golden de a985961'] }
+        - { id: ZX5, verdict: pass, class: rama-roja-mutantes, evidenceRef: ['14 mutantes rojos + mutante sin assertComplete rojo (3 compile-fail)'] }
+        - { id: ZX6, verdict: open, class: consumidor-real-styx, note: 'lo cierra trans/wire-styx-extraction: cada simbolo con consumidor en un production path de styx y su copia borrada' }
+    candidatos: >-
+      Barrido de styx/native/zig (01b2c3f) con veredicto:
+      SUBE time — fn nowNs en l1_ram, l2_nvmc, l3_sftp, moqt_wt_client,
+      cache_soak, wt_hol_probe, media_engine_cli, transmux/packager;
+      authority.realtimeSeconds; quic.sys nanoTimestamp/realtimeSeconds/sleepNs.
+      SUBE sync — capa Mutex/Condition de backpressure_waker (~95 LoC, 9 extern
+      "c") y 34 pthread_mutex_t crudos en 13 ficheros (116 lock/unlock); el
+      waker de dominio se queda. SUBE os/fs — shims no-socket de quic.sys
+      (createFile x57, getenv x5, File x5, readFileAlloc x3, openFileRead x3,
+      randomBytes x3); quic.sys se queda solo para sockets. SUBE
+      testing.Fixture — test_fixture.zig (75 LoC, 21 importadores). SUBE
+      ZeroCopyBuffer + BufferGuard (278 + 239; doble release era UAF). SUBE
+      PriorityQueue (385 + 231 de test). SUBE LatestValue — mecanica de
+      TransportSignalsChannel (payload se queda; version/valor incoherentes
+      arreglado). SUBE AtomicHistogram — mecanica de range_hist (caminos P1/P4
+      se quedan). SUBE BoundedQueue — parte generica de PendingDeliveryQueue
+      (1015 LoC; contadores por pista y politica live/vod se quedan; el
+      nanosleep de 0.5 ms en bucle desaparece). SUBE ConcurrentHandleSlab —
+      tiered_cache deja de serializar HandleSlab bajo su mutex. SUBE
+      safety.fs — path guard de local_file.zig (lexico .., frontera de prefijo,
+      O_NOFOLLOW, dev/ino) sustituido por Root fd-relativo. SUBE
+      ErrorSpaceWith — tabla SourceError de local_file.zig contra
+      SourceErrorCode de @styx/source-sdk (nombres SOURCE_* con ts_prefix +
+      .upper + ts_name). SUBE safety.BoundedReader — Cursor de
+      container/bytes.zig. SUBE safety.BitReader — BitReader de
+      container/bytes.zig (codec_config, frame_info). SUBE CancelToken —
+      container/bytes.zig (motores y daemon).
+      SE QUEDA (dominio): cache C7/C8/C19/r45 y su ledger, scheduler de sesion,
+      BackpressureWaker de dominio (tres listas de waiters), cache_sim,
+      cache_metrics (ventana circular de latencias con semantica propia), el
+      exporter OTel, Limits/Budget de los demuxers (contadores nombrados
+      single-thread), RangeReader/ByteSource (contrato SeekableMediaSource),
+      ConnectionPool SFTP (sockets), security/sct.zig y authority.zig (van a
+      spire como seguridad de comunicaciones, dec-0119), codecs MoQT/varint
+      (quic-zig), parsers de contenedor (media-core/container, dec-0109).
+      NO HABIA: RangeSet/IntervalMap (r56 L0) — vigilar para ExtentMap.
+
+  - id: trans/wire-styx-extraction
+    track: trans
+    repo: styx
+    owner: 'lane zkit paso 2 (styx)'
+    title: 'styx consume lo extraido y BORRA sus copias; bump del pin de zkit (paso 2 de 2)'
+    status: pending
+    dependsOn: [zkit/styx-extraction]
+    dod: >-
+      Pin de native/zig/build.zig.zon al commit candidato (git clone + zig
+      fetch del directorio: los tarballs de GitHub dan 403). Reescribir
+      imports y BORRAR en el mismo commit cada copia listada en
+      zkit/styx-extraction.candidatos (SUBE); ErrorSpaceWith sustituye la
+      tabla SourceError y genera el TS de @styx/source-sdk con un gate que
+      falla si divergen; safety.fs.Root sustituye el path guard de
+      local_file.zig; guard check:zkit-no-reimpl (pthread_mutex_t, fn nowNs,
+      extern "c", sys.createFile fuera de allowlist) con rama roja demostrada.
+      LOC de styx medido antes/despues por modulo. Suite de styx, TSAN y el
+      gate de closeSession verdes.
 
 evidence:
   - path: '~/dotfiles/HANDOFF-zig-toolchain-inception.md'

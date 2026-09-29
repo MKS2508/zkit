@@ -7,52 +7,104 @@ estaban escribiendo por separado, o que sólo existían en uno.
 
 ## Estado
 
-**En uso.** `zkit/scaffold` y `zkit/rescue` están cerrados: el código está aquí y
-`zig build test` pasa. `src/root.zig` exporta 8 símbolos y las primitivas suman
-~1.800 líneas con tests inline.
+**En uso.** `src/root.zig` exporta las primitivas originales (rescate de
+`styx/spikes/candidate-h` + hyperdiff), lo extraído de `styx/native/zig` en la
+pasada `zkit/styx-extraction` (2026-09-29) y la capa `zkit.safety`
+(styx dec-0117, parte 1 Zig).
 
-De esos 8, **dos tienen dos consumidores reales** (`HandleSlab`, `errors.ErrorSpace`),
-uno tiene uno (`TrackingAllocator`, el soak de styx) y cuatro tienen cero **a día de
-hoy** — pero `SubscriberQueue`, `ReorderBuffer`+`SequenceNumber` y `HungWorkerWatchdog`
-no están muertos: son el substrato de un bus pub/sub con snapshot+delta, y su
-consumidor previsto (`consumer-bus`, que absorbe `spire`) existe y está publicado.
+Consumidores: hyperdiff (`HandleSlab`, `WakeupPipe`, `errors`) y styx
+(`HandleSlab`, `TrackingAllocator`; el paso 2 de la extracción cablea el resto
+y borra las copias de styx). Mapa con sus tres ejes: `zkit.model.yml` →
+`lock/mapa-de-consumidores`. Qué queda por extraer: `docs/catalogo-infra-extraible.md`.
 
-Mapa completo con sus tres ejes: `zkit.model.yml` → `lock/mapa-de-consumidores`.
-Qué queda por extraer y a qué coste: `docs/catalogo-infra-extraible.md`.
+## Qué contiene, y de dónde sale
 
-## Qué va a contener, y de dónde sale
+### SO sin runtime `Io` (hilos propios, FFI)
 
-| Módulo | Origen | Por qué |
+Desde 0.16 `std.Thread.Mutex`, `nanoTimestamp`, `sleep`, `getenv` y `std.fs`
+viven detrás de `std.Io`; una librería con hilos propios no tiene uno.
+
+| Módulo | Origen | Qué aporta |
 |---|---|---|
-| `errors` | mecanismo nuevo, modelado sobre `hyperdiff/core/zig/src/errors.zig` | Hoy la ABI de errores se mantiene **a mano en 5 tablas paralelas** entre Zig y TS, con un doc-comment que promete "1:1" y nada que lo compruebe. zkit aporta el espacio de códigos genérico y **genera** el `.ts`. Es el análogo Zig de `@mks2508/no-throw`. |
-| `log` | ⚠️ **cero consumidores.** La copia de hyperdiff se **borró** (2026-08-28) por eso mismo, y porque su `std_options` era inerte: sólo se lee del módulo RAÍZ de la compilación. Antes de wirearlo, comprobar que eso no se hereda | Logging scoped centralizado. styx tiene 44 `std.log.scoped` sueltos en 12 directorios y ningún módulo central. Análogo de `@mks2508/better-logger`. |
-| `handle` | portado desde hyperdiff (su copia ya **no existe**: consume ésta) | Pool generacional con handle `u64` opaco que **es** la ABI. Gana al `HandlePool` de styx: free list fija sin alloc tras init, sin `catch {}` que fugue slots en OOM. |
-| `subscriber_queue` | `styx/spikes/candidate-h` | Cola acotada por suscriptor, overflow contract-gated. `std`-only, 11 tests inline. |
-| `reorder_buffer` | `styx/spikes/candidate-h` | Buffer de reordenado acotado con timeout. `std`-only, 15 tests inline. |
-| `watchdog` | `styx/spikes/candidate-h` | Detector de worker colgado: timer con bound + status atómico. `std`-only. |
-| `tracking_allocator` | `styx/native/zig/media-daemon` | Wrapper de `Allocator` con contador atómico de bytes vivos y leak-check. |
+| `time` | 4+ `fn nowNs` de styx, `quic.sys` | `monotonicNs`, `realtimeNs`, `sleepNs`, `Deadline`, `Stopwatch`; sin fallback silencioso a 0 |
+| `sync` | `backpressure_waker.zig` de styx, `watch/sync.zig` de hyperdiff | `Mutex`/`Condition` por valor, `tryLock`, `timedWait`/`waitUntil` sobre reloj monotónico |
+| `os` | `quic.sys` | `getenv`, `getenvInt` (ausente ≠ malformado), `randomBytes` criptográfico |
+| `fs` | `quic.sys` (shim de ficheros de un fork de sockets) | `File` con `pread`/`pwrite`, `stat` con dev/ino, `O_CLOEXEC`, `readFileAlloc` acotado |
+| `testing.Fixture` | `styx/native/zig/test_fixture.zig` | directorio temporal aislado por test |
 
-Las tres primitivas de `candidate-h` venían de un spike marcado para borrado por
-la propia gobernanza de styx. Se rescatan antes del `git rm`, no después.
+### Estructuras
+
+| Símbolo | Origen | Por qué |
+|---|---|---|
+| `HandleSlab` | hyperdiff (su copia ya no existe) | pool generacional, handle `u64` opaco = la ABI; `take` devuelve el valor |
+| `ConcurrentHandleSlab` | nodo `zkit/handle-concurrent` (styx r44 #2) | slab compartible; `lock(h)` usa el valor sin carrera con `take` |
+| `BoundedQueue` | `PendingDeliveryQueue` de styx (r44 #9) | cola acotada thread-safe: `reject`/`drop_oldest`, espera con `Condition`, drenado con reserva |
+| `SubscriberQueue` | `styx/spikes/candidate-h` | cola por suscriptor single-thread con discontinuidad |
+| `ReorderBuffer` / `SequenceNumber` | `styx/spikes/candidate-h` | reordenado acotado con timeout |
+| `HungWorkerWatchdog` | `styx/spikes/candidate-h` | detector de worker colgado |
+| `PriorityQueue` | `styx/media-core/scheduler` | top-N acotado + overflow FIFO (MoQ `lite/priority.rs`) |
+| `LatestValue` | `TransportSignalsChannel` de styx | canal latest-wins con versión (valor y versión coherentes) |
+| `AtomicHistogram` | `range_hist.zig` de styx | cubos comptime validados, `record` lock-free |
+| `ZeroCopyBuffer` / `BufferGuard` | `styx/media-core/source/buffer` | buffer refcontado alineado a página para fanout sin copias |
+| `CancelToken` | `container/bytes.zig` de styx | cancelación por petición encadenable |
+| `TrackingAllocator` | `styx/native/zig/media-daemon` | contador atómico de bytes vivos |
+| `WakeupPipe` | hyperdiff | despertar de un loop por pipe |
+| `errors.ErrorSpace` / `ErrorSpaceWith` | mecanismo nuevo | espacio de códigos + TS generado; completo al compilar, nombres TS configurables |
+| `log` | hyperdiff | ⚠️ cero consumidores (ver `zkit.model.yml`) |
+
+### `zkit.safety` — seguridad por construcción
+
+Cada pieza convierte una clase de bug en imposible o en fallo determinista:
+
+| Pieza | Clase de bug |
+|---|---|
+| `Handle(Tag)` / `TypedSlab` | UAF por handle obsoleto (generación) y confusión de handles (tipo por `Tag`, error de compilación) |
+| `Budget` / `BudgetAllocator` | memoria sin cota por sesión/usuario, leaks sin informe, contabilidad no independiente |
+| `fs.Root` | path traversal, symlinks que escapan, TOCTOU (openat2 `RESOLVE_BENEATH` o recorrido `O_NOFOLLOW` fd a fd), FIFOs |
+| `BoundedReader` / `BitReader` | lecturas fuera de límites, longitudes del wire sin validar, varints QUIC / VINT EBML / Exp-Golomb hostiles |
+| `checked` | desbordes en offsets/longitudes (`checkRange` nunca calcula `offset + len`) |
+| `Mutex` | unlock ajeno, autodeadlock, inversión de orden de locks (niveles) |
+| `fuzz` | parsers que hacen pánico o fugan con entradas truncadas/corruptas |
+
+Lo que la capa no puede imponer —que el consumidor no se la salte— lo imponen
+los guards de build/CI del consumidor (dec-0117, doble capa).
+
+## Build y tests
+
+```sh
+zig build test                       # 1 binario raíz + 4 suites + 6 compile-fail
+zig build test -Dtsan=true           # lane ThreadSanitizer
+zig build test -Dtsan=true -Dtsan-canary=true   # TIENE que fallar (carrera deliberada)
+zig build test -Doptimize=ReleaseSafe
+zig build test -Dtest-filter=<nombre>
+zig build fuzz                       # corpus de los tests std.testing.fuzz
+```
+
+- `test/compile_errors/`: código que zkit debe rechazar al compilar
+  (ErrorSpace incompleto, handles de tags distintos mezclados, …). El paso pasa
+  sólo si la compilación falla con el mensaje esperado.
+- `zig build fuzz --fuzz=N` (guiado por cobertura) falla hoy en
+  0.17.0-dev.1893 con `corrupted coverage file … pcs_len was zero`, también
+  con un test standalone sin zkit: bug del toolchain. Los barridos
+  deterministas de `safety.fuzz` corren en `zig build test`.
 
 ## Qué NO va a contener, y por qué
 
-- **Una cola genérica que unifique las existentes.** `patch_ring` (MPSC bytes),
-  `event_queue` (SPSC fijo) y `subscriber_queue` (acotada con política) son tres
-  disciplinas de concurrencia distintas, no tres copias. Fusionarlas sería
-  flexibilidad especulativa.
-- **Los 49 códigos de error concretos de hyperdiff.** Son la ABI de paquetes
-  publicados y en producción; dos copias divergirían. zkit aporta el mecanismo,
-  hyperdiff lo instancia — con parity gate, y no en esta pasada.
-- **Abstracción de procesos / PTY.** La auditoría cross-repo dio negativo: tanto
-  `mks-agentics` como `mks-workspaces` delegan (tmux, Docker, SSH) sin dolor
-  medido. Es un candidato que la evidencia refuta, no una tarea pendiente.
+- **Una cola genérica que unifique todas.** `patch_ring` (MPSC bytes),
+  `event_queue` (SPSC fijo), `SubscriberQueue` (single-thread) y
+  `BoundedQueue` (mutex + condición + reserva) son disciplinas distintas.
+- **Los códigos de error concretos de nadie.** zkit aporta el mecanismo; cada
+  consumidor instancia su espacio.
+- **Dominio de styx**: la caché C7/C8, el scheduler de sesión, los contadores
+  por pista, la política live/VOD, `Limits` de los demuxers, el verificador SCT.
+  Se quedan en styx sobre estas primitivas.
+- **Abstracción de procesos / PTY.** La auditoría cross-repo dio negativo.
 
 ## SSOT
 
 `zkit.model.yml` es la autoridad del programa cross-repo — cubre zkit,
 hyperdiff, styx, quic-zig y libxev, porque la cadena de pinneo cruza fronteras y
-la extracción toca tres repos en la misma pasada.
+la extracción toca varios repos en la misma pasada.
 
 `hyperdiff/ROADMAP.md` y `styx/styx.model.yml` siguen mandando cada uno sobre su
 propio repo. La evidencia (el porqué, lo descartado, las medidas) vive en los
