@@ -125,3 +125,21 @@ Nada compilado — la matriz ocupa la máquina. Antes de implementar:
 2. Medir el impacto en tiempo de compilación de generar ~46 entradas por `inline for`. Si sube
    de forma apreciable, el emisor puede ser un step de `build.zig` en vez de comptime puro, y el
    guard queda como test.
+
+---
+
+## 2026-09-29 — completitud comptime y nombres TypeScript (consumidor styx)
+
+- **Completitud en los dos sentidos, al compilar** (`assertComplete`): cada variante de `E`
+  tiene exactamente una entrada y cada entrada nombra una variante de `E`. Antes, una variante
+  sin entrada compilaba y `codeOf` llegaba a un `unreachable` en runtime: la promesa de §2
+  ("no puede quedar incompleto") sólo se cumplía en la dirección que el compilador comprueba
+  por accidente. Guards demostrados en `test/compile_errors/` (paso de `zig build test`).
+- **`ErrorSpaceWith(E, domains, opts)`**: nombres TS derivados (`ts_prefix` + `ts_case`) o
+  explícitos por entrada (`ts_name`), nombre del tipo (`ts_type_name`) y prefijo de las
+  constantes (`ts_const_prefix`). Caso real: la tabla manual `SourceError` de
+  `styx/native/zig/media-core/source/local_file.zig` (snake_case) contra `SourceErrorCode` de
+  `@styx/source-sdk` (`SOURCE_*`). `ErrorSpace(E, domains)` = `ErrorSpaceWith(.., .{})`, y su
+  salida es **byte a byte** la de `master` (golden en `src/test_errors_space_v2.zig`).
+- **`codeOfAny(anyerror) ?Code`** para la frontera IPC, donde llega un error de un conjunto
+  más ancho, y **`nameOf(code)`**.

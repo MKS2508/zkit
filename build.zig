@@ -49,6 +49,7 @@ pub fn build(b: *std.Build) void {
         "src/test_reorder_buffer_bound.zig",
         "src/test_watchdog.zig",
         "src/test_errors.zig",
+        "src/test_errors_space_v2.zig",
     }) catch @panic("OOM");
     if (tsan_canary) standalone_tests.append(b.allocator, "src/test_tsan_canary.zig") catch @panic("OOM");
 
@@ -64,5 +65,30 @@ pub fn build(b: *std.Build) void {
             .filters = test_filters,
         });
         test_step.dependOn(&b.addRunArtifact(t).step);
+    }
+
+    // ── Guards comptime: tienen que FALLAR al compilar ─────────────────────
+    // Cada caso es código que zkit debe rechazar; el paso pasa sólo si la
+    // compilación falla con el mensaje esperado. Un guard que nunca se ha
+    // visto fallar no es un guard (CLAUDE.md).
+    const CompileError = struct { file: []const u8, module: []const u8, root: []const u8, expect: []const u8 };
+    const compile_errors = [_]CompileError{
+        .{ .file = "test/compile_errors/errorspace_missing_entry.zig", .module = "zkit_errors", .root = "src/errors.zig", .expect = "ErrorSpace: error.path_traversal has no entry" },
+        .{ .file = "test/compile_errors/errorspace_unknown_tag.zig", .module = "zkit_errors", .root = "src/errors.zig", .expect = "ErrorSpace: entry 'range_too_large' in domain 's' is not a variant of E" },
+        .{ .file = "test/compile_errors/errorspace_duplicate_entry.zig", .module = "zkit_errors", .root = "src/errors.zig", .expect = "ErrorSpace: error.file_not_found has more than one entry" },
+        .{ .file = "test/compile_errors/typed_handle_mixup.zig", .module = "zkit", .root = "src/root.zig", .expect = "expected type 'safety.handle.Handle(typed_handle_mixup.BufferTag)', found 'safety.handle.Handle(typed_handle_mixup.SessionTag)'" },
+        .{ .file = "test/compile_errors/typed_slab_lock_single_thread.zig", .module = "zkit", .root = "src/root.zig", .expect = "TypedSlab.lock requiere .thread_safe = true" },
+        .{ .file = "test/compile_errors/histogram_bad_bounds.zig", .module = "zkit", .root = "src/root.zig", .expect = "AtomicHistogram: bounds debe ser estrictamente creciente" },
+    };
+    for (compile_errors) |ce| {
+        const run = b.addSystemCommand(&.{ b.graph.zig_exe, "test", "-lc", "--dep", ce.module });
+        run.addPrefixedFileArg("-Mroot=", b.path(ce.file));
+        run.addPrefixedFileArg(b.fmt("-M{s}=", .{ce.module}), b.path(ce.root));
+        run.expectExitCode(1);
+        run.expectStdErrMatch(ce.expect);
+        // Siempre se re-ejecuta: el resultado depende de todo `src/`, no sólo
+        // de los dos ficheros de la línea de comandos.
+        run.has_side_effects = true;
+        test_step.dependOn(&run.step);
     }
 }
