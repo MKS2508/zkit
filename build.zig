@@ -91,4 +91,20 @@ pub fn build(b: *std.Build) void {
         run.has_side_effects = true;
         test_step.dependOn(&run.step);
     }
+
+    // ── Fuzz guiado por cobertura ───────────────────────────────────────────
+    // `zig build fuzz --fuzz=<N>`: sólo el binario raíz y sólo los tests que
+    // usan `std.testing.fuzz` (vía `zkit.safety.fuzz.fuzzBytes`). Sin
+    // `--fuzz` corre su corpus como un test normal.
+    const fuzz_step = b.step("fuzz", "Coverage-guided fuzz of zkit parsers (use with --fuzz=N)");
+    const fuzz_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/root.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
+        .filters = &.{"std.testing.fuzz"},
+    });
+    fuzz_step.dependOn(&b.addRunArtifact(fuzz_tests).step);
 }
