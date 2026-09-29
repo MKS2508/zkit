@@ -25,3 +25,10 @@ pub const testing = @import("testing.zig");
 pub const ConcurrentHandleSlab = @import("handle_concurrent.zig").ConcurrentHandleSlab;
 pub const bounded_queue = @import("bounded_queue.zig");
 pub const BoundedQueue = bounded_queue.BoundedQueue;
+
+// ── Estructuras extraídas del data plane de styx ──────────────────────────
+pub const PriorityQueue = @import("priority_queue.zig").PriorityQueue;
+pub const LatestValue = @import("latest_value.zig").LatestValue;
+pub const AtomicHistogram = @import("histogram.zig").AtomicHistogram;
+pub const ZeroCopyBuffer = @import("zero_copy_buffer.zig").ZeroCopyBuffer;
+pub const BufferGuard = @import("zero_copy_buffer.zig").BufferGuard;
