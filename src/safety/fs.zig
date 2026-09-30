@@ -251,23 +251,15 @@ pub const Root = struct {
 
     /// Borra la entrada `name` de la raíz (`unlinkat`, relativo al fd). Un
     /// symlink con ese nombre se borra él, sin seguirlo; un directorio es
-    /// `error.IsDir` (no borra árboles).
+    /// `error.IsDir` (no borra árboles) en toda plataforma.
     pub fn deleteEntry(self: *const Root, name: []const u8) DeleteError!void {
         try validateEntryName(name);
         var buf: [zfs.max_path_bytes]u8 = undefined;
         const z = try zfs.pathZ(name, &buf);
         while (true) {
-            switch (posix.errno(c.unlinkat(self.dir.fd, z, 0))) {
-                .SUCCESS => return,
-                .INTR => continue,
-                .NOENT => return error.FileNotFound,
-                .ACCES, .PERM => return error.AccessDenied,
-                .ISDIR => return error.IsDir,
-                .BUSY => return error.FileBusy,
-                .ROFS => return error.ReadOnlyFileSystem,
-                .NOMEM => return error.SystemResources,
-                else => return error.Unexpected,
-            }
+            const e = posix.errno(c.unlinkat(self.dir.fd, z, 0));
+            if (e == .INTR) continue;
+            return unlinkResult(e, self.dir.fd, z);
         }
     }
 
@@ -430,6 +422,39 @@ fn clearNonblock(fd: posix.fd_t) void {
     var o: posix.O = @bitCast(@as(u32, @intCast(fl)));
     o.NONBLOCK = false;
     _ = c.fcntl(fd, c.F.SETFL, @as(c_int, @bitCast(@as(u32, @bitCast(o)))));
+}
+
+/// Resultado de `unlinkat(dir, name, 0)` con errno `e`. Linux dice EISDIR
+/// para un directorio; POSIX permite EPERM y es lo que devuelve Darwin (y
+/// los BSD). Un EPERM/EACCES se contrasta con `fstatat(AT_SYMLINK_NOFOLLOW)`:
+/// si la entrada es un directorio (no un symlink a uno) es `IsDir`, si no el
+/// permiso de verdad falta.
+fn unlinkResult(e: posix.E, dir: posix.fd_t, name: [*:0]const u8) DeleteError!void {
+    return switch (e) {
+        .SUCCESS => {},
+        .NOENT => error.FileNotFound,
+        .ACCES, .PERM => if (isDirAt(dir, name)) error.IsDir else error.AccessDenied,
+        .ISDIR => error.IsDir,
+        .BUSY => error.FileBusy,
+        .ROFS => error.ReadOnlyFileSystem,
+        .NOMEM => error.SystemResources,
+        else => error.Unexpected,
+    };
+}
+
+/// ¿Es `name` (sin seguir un symlink final) un directorio? `false` si no se
+/// puede saber.
+fn isDirAt(dir: posix.fd_t, name: [*:0]const u8) bool {
+    if (builtin.os.tag == .linux) {
+        const linux = std.os.linux;
+        var stx: linux.Statx = undefined;
+        const rc = linux.statx(dir, name, linux.AT.SYMLINK_NOFOLLOW, .{ .TYPE = true }, &stx);
+        return linux.errno(rc) == .SUCCESS and c.S.ISDIR(stx.mode);
+    } else {
+        var st: c.Stat = undefined;
+        if (c.fstatat(dir, name, &st, c.AT.SYMLINK_NOFOLLOW) != 0) return false;
+        return c.S.ISDIR(@intCast(st.mode));
+    }
 }
 
 fn isSymlinkAt(dir: posix.fd_t, name: [*:0]const u8) bool {
@@ -704,6 +729,22 @@ test "Root.deleteEntry: borra el enlace, nunca lo que apunta; no baja a subdirec
     try testing.expectError(error.NotAnEntryName, root.deleteEntry("../outside.bin"));
     try testing.expect(try exists(&fx, "root/sub/deep.bin"));
     try testing.expect(try exists(&fx, "outside.bin"));
+}
+
+test "Root.deleteEntry: el EPERM/EACCES de Darwin sobre un directorio es IsDir; sobre un fichero o un symlink a directorio, AccessDenied" {
+    // Linux devuelve EISDIR y nunca pasa por esta rama; se ejercita el mapeo
+    // con el errno que da Darwin contra entradas reales.
+    var fx = Fixture.init();
+    defer fx.deinit();
+    var root = try Root.open(try buildTree(&fx));
+    defer root.close();
+    for ([_]posix.E{ .PERM, .ACCES }) |e| {
+        try testing.expectError(error.IsDir, unlinkResult(e, root.dir.fd, "sub"));
+        try testing.expectError(error.AccessDenied, unlinkResult(e, root.dir.fd, "ok.bin"));
+        try testing.expectError(error.AccessDenied, unlinkResult(e, root.dir.fd, "dirlink"));
+        try testing.expectError(error.AccessDenied, unlinkResult(e, root.dir.fd, "missing"));
+    }
+    try testing.expectError(error.IsDir, unlinkResult(.ISDIR, root.dir.fd, "sub"));
 }
 
 test "Root.renameEntry: atómico dentro de la raíz; un symlink plantado en el destino se reemplaza, no se sigue" {
