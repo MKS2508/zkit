@@ -32,6 +32,14 @@
 //! dispositivos (`error.NotRegularFile`): un FIFO bajo la raíz bloquearía un
 //! lector para siempre.
 //!
+//! Montajes (`Mounts`): por defecto (`.same`) una apertura no cruza ningún
+//! punto de montaje bajo la raíz, tampoco un bind mount de un fichero de
+//! fuera sobre un nombre de dentro (mismo `dev`, así que comparar `dev` no lo
+//! ve). openat2 lleva `RESOLVE_NO_XDEV`; además, en Linux, el `mnt_id`
+//! (statx) de lo abierto tiene que ser el de la raíz, lo que cubre también
+//! el recorrido, que por sí solo no distingue un montaje. `.cross` lo relaja
+//! para la raíz que lo necesite (bind mounts dentro de una biblioteca).
+//!
 //! Entradas directas de la raíz (un servidor que gestiona su directorio de
 //! staging): `deleteEntry`, `renameEntry`, `entries` y `syncDir`. Sólo
 //! aceptan UN componente (`validateEntryName`: sin `/`, ni `.`/`..`), así
@@ -156,6 +164,15 @@ pub const Resolver = enum {
     walk,
 };
 
+/// ¿Puede una apertura cruzar un punto de montaje bajo la raíz?
+pub const Mounts = enum {
+    /// No (defecto): `RESOLVE_NO_XDEV` y el `mnt_id` de lo abierto igual al
+    /// de la raíz. Un montaje debajo es `error.PathEscapesRoot`.
+    same,
+    /// Sí: para una raíz cuyo operador monta cosas dentro a propósito.
+    cross,
+};
+
 pub const Access = enum { read_only, write_only, read_write };
 
 pub const OpenOptions = struct {
@@ -163,6 +180,7 @@ pub const OpenOptions = struct {
     symlinks: Symlinks = .reject,
     require_regular: bool = true,
     resolver: Resolver = .auto,
+    mounts: Mounts = .same,
 };
 
 pub const CreateOptions = struct {
@@ -172,6 +190,7 @@ pub const CreateOptions = struct {
     mode: posix.mode_t = 0o600,
     read: bool = false,
     resolver: Resolver = .auto,
+    mounts: Mounts = .same,
 };
 
 pub const Error = zfs.OpenError || zfs.StatError || PathError || error{
@@ -193,6 +212,9 @@ pub const Opened = struct {
 pub const Root = struct {
     dir: zfs.File,
     identity: FileIdentity,
+    /// `mnt_id` del montaje de la raíz (Linux ≥ 5.8); null donde el sistema
+    /// no lo da, y entonces sólo quedan `RESOLVE_NO_XDEV` y el `dev`.
+    mount_id: ?u64,
 
     /// Abre la raíz (ruta del OPERADOR, p. ej. `STYX_MEDIA_ROOT`). La raíz
     /// en sí puede ser un symlink (lo decide quien configura); lo que hay
@@ -204,7 +226,7 @@ pub const Root = struct {
         errdefer d.close();
         const st = try d.stat();
         if (st.kind != .directory) return error.NotDir;
-        return .{ .dir = d, .identity = .{ .dev = st.dev, .ino = st.ino } };
+        return .{ .dir = d, .identity = .{ .dev = st.dev, .ino = st.ino }, .mount_id = mountIdOf(d.fd) };
     }
 
     pub fn close(self: *Root) void {
@@ -220,7 +242,7 @@ pub const Root = struct {
         flags.NOCTTY = true;
         // Nunca bloquear en open(2) sobre un FIFO plantado bajo la raíz.
         flags.NONBLOCK = opts.require_regular;
-        const f = try self.resolve(rel, flags, 0, opts.symlinks, opts.resolver);
+        const f = try self.resolve(rel, flags, 0, opts.symlinks, opts.resolver, opts.mounts);
         errdefer f.close();
         const st = try f.stat();
         if (opts.require_regular and st.kind != .file) return error.NotRegularFile;
@@ -235,7 +257,7 @@ pub const Root = struct {
         try validateRelative(rel);
         var flags = zfs.createFlags(.{ .exclusive = opts.exclusive, .truncate_existing = !opts.exclusive, .read = opts.read });
         flags.NOCTTY = true;
-        return self.resolve(rel, flags, opts.mode, .reject, opts.resolver);
+        return self.resolve(rel, flags, opts.mode, .reject, opts.resolver, opts.mounts);
     }
 
     /// Crea el directorio `rel` bajo la raíz (padres deben existir).
@@ -244,6 +266,7 @@ pub const Root = struct {
         const split = splitParent(rel);
         var parent = try self.openParent(split.parent);
         defer if (parent.fd != self.dir.fd) parent.close();
+        try self.expectSameMount(parent.fd);
         var buf: [zfs.max_path_bytes]u8 = undefined;
         const z = try zfs.pathZ(split.name, &buf);
         try zfs.makeDirAt(parent.fd, z, opts);
@@ -321,14 +344,30 @@ pub const Root = struct {
         return self.openFile(try relativeTo(root_path, abs), opts);
     }
 
-    fn resolve(self: *const Root, rel: []const u8, flags: posix.O, mode: posix.mode_t, symlinks: Symlinks, resolver: Resolver) Error!zfs.File {
-        if (builtin.os.tag == .linux and resolver == .auto) {
-            if (openat2(self.dir.fd, rel, flags, mode, symlinks)) |f| return f else |err| switch (err) {
-                error.Unsupported => {}, // cae al recorrido
-                else => |e| return e,
+    fn resolve(self: *const Root, rel: []const u8, flags: posix.O, mode: posix.mode_t, symlinks: Symlinks, resolver: Resolver, mounts: Mounts) Error!zfs.File {
+        const f = open: {
+            if (builtin.os.tag == .linux and resolver == .auto) {
+                if (openat2(self.dir.fd, rel, flags, mode, symlinks, mounts)) |f| break :open f else |err| switch (err) {
+                    error.Unsupported => {}, // cae al recorrido
+                    else => |e| return e,
+                }
             }
-        }
-        return self.walk(rel, flags, mode);
+            break :open try self.walk(rel, flags, mode);
+        };
+        if (mounts == .same) self.expectSameMount(f.fd) catch |err| {
+            f.close();
+            return err;
+        };
+        return f;
+    }
+
+    /// `fd` está en el mismo montaje que la raíz. Donde el sistema no da
+    /// `mnt_id` no hay nada que comparar; si la raíz lo tiene y `fd` no, se
+    /// rechaza (sin dato no se admite).
+    fn expectSameMount(self: *const Root, fd: posix.fd_t) Error!void {
+        const root_mount = self.mount_id orelse return;
+        const mount = mountIdOf(fd) orelse return error.PathEscapesRoot;
+        if (mount != root_mount) return error.PathEscapesRoot;
     }
 
     /// Recorrido portable: cada componente sobre el fd del anterior con
@@ -470,8 +509,20 @@ fn isSymlinkAt(dir: posix.fd_t, name: [*:0]const u8) bool {
     }
 }
 
+/// `mnt_id` del montaje en el que está `fd` (statx `STATX_MNT_ID`, Linux ≥
+/// 5.8); null fuera de Linux o si el kernel no lo rellena.
+fn mountIdOf(fd: posix.fd_t) ?u64 {
+    if (builtin.os.tag != .linux) return null;
+    const linux = std.os.linux;
+    var stx: linux.Statx = undefined;
+    const rc = linux.statx(fd, "", linux.AT.EMPTY_PATH, .{ .MNT_ID = true }, &stx);
+    if (linux.errno(rc) != .SUCCESS or !stx.mask.MNT_ID) return null;
+    return stx.mnt_id;
+}
+
 // ── openat2 (Linux) ─────────────────────────────────────────────────────────
 
+const RESOLVE_NO_XDEV: u64 = 0x01;
 const RESOLVE_NO_MAGICLINKS: u64 = 0x02;
 const RESOLVE_NO_SYMLINKS: u64 = 0x04;
 const RESOLVE_BENEATH: u64 = 0x08;
@@ -481,7 +532,7 @@ const OpenHow = extern struct { flags: u64, mode: u64, resolve: u64 };
 /// `false` tras el primer ENOSYS/EPERM: no volver a intentarlo.
 var openat2_available: std.atomic.Value(bool) = .init(true);
 
-fn openat2(dir: posix.fd_t, rel: []const u8, flags: posix.O, mode: posix.mode_t, symlinks: Symlinks) (Error || error{Unsupported})!zfs.File {
+fn openat2(dir: posix.fd_t, rel: []const u8, flags: posix.O, mode: posix.mode_t, symlinks: Symlinks, mounts: Mounts) (Error || error{Unsupported})!zfs.File {
     if (!openat2_available.load(.monotonic)) return error.Unsupported;
     const linux = std.os.linux;
     var buf: [zfs.max_path_bytes]u8 = undefined;
@@ -491,6 +542,7 @@ fn openat2(dir: posix.fd_t, rel: []const u8, flags: posix.O, mode: posix.mode_t,
         .mode = if (flags.CREAT) mode else 0,
         .resolve = RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS,
     };
+    if (mounts == .same) how.resolve |= RESOLVE_NO_XDEV;
     if (symlinks == .reject) {
         how.resolve |= RESOLVE_NO_SYMLINKS;
         how.flags |= @as(u32, @bitCast(posix.O{ .NOFOLLOW = true }));
@@ -635,6 +687,42 @@ test "Root: TOCTOU — cambiar un directorio intermedio por un symlink tras abri
     const o = try root.openFile("ok.bin", .{});
     defer o.file.close();
     try testing.expectEqualStrings("OK", (try readAll(o))[0..2]);
+}
+
+test "Root: un montaje bajo la raíz (tmpfs, o bind de un fichero de fuera: mismo dev) no se cruza con ningún resolvedor; .cross lo admite" {
+    if (builtin.os.tag != .linux) return error.SkipZigTest;
+    const linux = std.os.linux;
+    var fx = Fixture.init();
+    defer fx.deinit();
+    const root_path = try buildTree(&fx);
+    const secret = try fx.writeFile("secret.bin", "SECRET");
+    const mnt = try fx.mkdir("root/mnt");
+    const bind = try fx.writeFile("root/bind.bin", "PLACEHOLDER");
+    // Montar exige CAP_SYS_ADMIN: sin él el caso no se puede construir, y se
+    // salta (nunca pasa en verde sin ejercitarse).
+    switch (linux.errno(linux.mount("tmpfs", mnt, "tmpfs", 0, 0))) {
+        .SUCCESS => {},
+        .PERM, .ACCES => return error.SkipZigTest,
+        else => return error.MountFailed,
+    }
+    defer _ = linux.umount2(mnt, 0);
+    if (linux.errno(linux.mount(secret, bind, null, linux.MS.BIND, 0)) != .SUCCESS) return error.MountFailed;
+    defer _ = linux.umount2(bind, 0);
+    _ = try fx.writeFile("root/mnt/x.bin", "TMPFS");
+
+    var root = try Root.open(root_path);
+    defer root.close();
+    for ([_]Resolver{ .auto, .walk }) |res| {
+        try testing.expectError(error.PathEscapesRoot, root.openFile("bind.bin", .{ .resolver = res }));
+        try testing.expectError(error.PathEscapesRoot, root.openFile("mnt/x.bin", .{ .resolver = res }));
+        try testing.expectError(error.PathEscapesRoot, root.createFile("mnt/new.bin", .{ .resolver = res }));
+        const ok = try root.openFile("ok.bin", .{ .resolver = res });
+        ok.file.close();
+        const crossed = try root.openFile("bind.bin", .{ .resolver = res, .mounts = .cross });
+        defer crossed.file.close();
+        try testing.expectEqualStrings("SECRET", (try readAll(crossed))[0..6]);
+    }
+    try testing.expectError(error.PathEscapesRoot, root.makeDir("mnt/d", .{}));
 }
 
 test "Root: createFile exclusivo no sigue un symlink plantado; makeDir bajo la raíz" {
