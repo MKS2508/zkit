@@ -84,13 +84,22 @@ Nodos que habría que dar de alta, o que styx ya lleva por su lado:
 - `conduit/zig-sdk`, en el repo conduit;
 - `spire/zig-sdk`, en el repo spire;
 - en styx, los nodos `track/byte-runtime/ingest` y `track/spire` (`styx.model.yml`, tanda 4,
-  ambos queued).
+  ambos in_progress desde el 2026-09-30).
 
-## Estado a 2026-09-29 (para no confundir decisión con hecho)
+## Estado a 2026-09-30 (para no confundir decisión con hecho)
 
-- Nada de esto está en código todavía. En la tanda 4 de styx sólo corrió la lane de zkit. Su
-  trabajo está en `feat/styx-extraction` (14 commits sobre `a985961`, **sin push**) y en la rama
-  `w4/zkit` de styx. Quedó sin resolver: los escépticos de la ronda 3 refutan la cobertura del
-  guard `zig build audit:safety` de styx.
-- Las lanes de spire y conduit no arrancaron: van encadenadas tras integrar zkit. Ni
-  `MKS2508/spire` ni `MKS2508/conduit` tienen rama `feat/*`.
+- **zkit**: `feat/styx-extraction` se publicó en `master` (`c6195d3`) y styx lo consume
+  integrado. Su nodo `track/byte-runtime/zkit` está done. Encima de `c6195d3` hay dos commits
+  **sin publicar** (`d808594`, `627917d`: entradas directas de `safety.fs.Root` y `deleteEntry`
+  portable a Darwin). Los pide la lane conduit de styx.
+- **conduit** y **spire** tienen su SDK Zig construido en `feat/zig-sdk` de cada repo, sin
+  push. En styx los consumen las ramas `w4/conduit` (`IngestSink` del daemon + `styx-upload`,
+  ADR `dec-0121`) y `w4/spire` (IPC de control Bun↔daemon y NATS de los seis servicios, ADR
+  `dec-0120`). **Ninguna está integrada**: la ronda 4 de verificación de las dos queda sin
+  resolver. En la rama de integración de styx el footprint de conduit y spire en código sigue
+  siendo cero, y los nodos `track/byte-runtime/ingest` y `track/spire` están in_progress.
+- Esta propuesta sigue sin aplicarse a `zkit.model.yml`. La realidad ya la respalda en ramas,
+  pero en la rama por defecto de styx todavía no.
+
+El estado del 2026-09-29 (sólo había corrido la lane zkit, sin push; spire y conduit sin
+arrancar) queda superado por lo de arriba.
