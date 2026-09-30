@@ -31,6 +31,14 @@
 //! Y además: `require_regular` (por defecto) rechaza directorios, FIFOs y
 //! dispositivos (`error.NotRegularFile`): un FIFO bajo la raíz bloquearía un
 //! lector para siempre.
+//!
+//! Entradas directas de la raíz (un servidor que gestiona su directorio de
+//! staging): `deleteEntry`, `renameEntry`, `entries` y `syncDir`. Sólo
+//! aceptan UN componente (`validateEntryName`: sin `/`, ni `.`/`..`), así
+//! que no hay ningún componente intermedio que resolver ni que cambiar por
+//! un symlink; y `unlinkat`/`renameat` actúan sobre el enlace, nunca lo
+//! siguen: un symlink plantado con ese nombre se borra o se reemplaza, lo
+//! que apunta queda intacto.
 
 const std = @import("std");
 const builtin = @import("builtin");
@@ -81,6 +89,47 @@ pub fn relativeTo(root: []const u8, abs: []const u8) PathError![]const u8 {
     try validateRelative(rel);
     return rel;
 }
+
+pub const EntryNameError = PathError || error{
+    /// No es UNA entrada directa de la raíz: lleva `/`, o es `.`/`..`.
+    NotAnEntryName,
+};
+
+/// Validación léxica de un nombre de entrada directa de la raíz: un solo
+/// componente, no vacío, sin `/`, sin NUL, distinto de `.` y `..`.
+pub fn validateEntryName(name: []const u8) EntryNameError!void {
+    if (name.len == 0) return error.EmptyPath;
+    if (name.len >= zfs.max_path_bytes or std.mem.indexOfScalar(u8, name, 0) != null) return error.NameTooLong;
+    if (std.mem.indexOfScalar(u8, name, '/') != null or std.mem.eql(u8, name, ".") or std.mem.eql(u8, name, ".."))
+        return error.NotAnEntryName;
+}
+
+pub const DeleteError = EntryNameError || error{
+    FileNotFound,
+    AccessDenied,
+    IsDir,
+    FileBusy,
+    ReadOnlyFileSystem,
+    SystemResources,
+    Unexpected,
+};
+
+pub const RenameError = EntryNameError || error{
+    FileNotFound,
+    AccessDenied,
+    IsDir,
+    NotDir,
+    DirNotEmpty,
+    FileBusy,
+    NoSpaceLeft,
+    ReadOnlyFileSystem,
+    SystemResources,
+    Unexpected,
+};
+
+pub const SyncDirError = zfs.OpenError || zfs.WriteError;
+
+pub const EntriesError = zfs.OpenError || error{SystemResources};
 
 /// Identidad de un objeto del sistema de ficheros (no de su ruta).
 pub const FileIdentity = struct {
@@ -200,6 +249,80 @@ pub const Root = struct {
         try zfs.makeDirAt(parent.fd, z, opts);
     }
 
+    /// Borra la entrada `name` de la raíz (`unlinkat`, relativo al fd). Un
+    /// symlink con ese nombre se borra él, sin seguirlo; un directorio es
+    /// `error.IsDir` (no borra árboles).
+    pub fn deleteEntry(self: *const Root, name: []const u8) DeleteError!void {
+        try validateEntryName(name);
+        var buf: [zfs.max_path_bytes]u8 = undefined;
+        const z = try zfs.pathZ(name, &buf);
+        while (true) {
+            switch (posix.errno(c.unlinkat(self.dir.fd, z, 0))) {
+                .SUCCESS => return,
+                .INTR => continue,
+                .NOENT => return error.FileNotFound,
+                .ACCES, .PERM => return error.AccessDenied,
+                .ISDIR => return error.IsDir,
+                .BUSY => return error.FileBusy,
+                .ROFS => return error.ReadOnlyFileSystem,
+                .NOMEM => return error.SystemResources,
+                else => return error.Unexpected,
+            }
+        }
+    }
+
+    /// Renombra la entrada `from` a `to`, las dos directas de la raíz
+    /// (`renameat`, atómico). Si `to` existe se reemplaza — también un
+    /// symlink plantado con ese nombre: se sustituye el enlace, lo que
+    /// apuntaba no se toca. Un `from` symlink se renombra como enlace.
+    pub fn renameEntry(self: *const Root, from: []const u8, to: []const u8) RenameError!void {
+        try validateEntryName(from);
+        try validateEntryName(to);
+        var from_buf: [zfs.max_path_bytes]u8 = undefined;
+        var to_buf: [zfs.max_path_bytes]u8 = undefined;
+        const from_z = try zfs.pathZ(from, &from_buf);
+        const to_z = try zfs.pathZ(to, &to_buf);
+        while (true) {
+            switch (posix.errno(c.renameat(self.dir.fd, from_z, self.dir.fd, to_z))) {
+                .SUCCESS => return,
+                .INTR => continue,
+                .NOENT => return error.FileNotFound,
+                .ACCES, .PERM => return error.AccessDenied,
+                .ISDIR => return error.IsDir,
+                .NOTDIR => return error.NotDir,
+                .NOTEMPTY, .EXIST => return error.DirNotEmpty,
+                .BUSY => return error.FileBusy,
+                .NOSPC, .DQUOT => return error.NoSpaceLeft,
+                .ROFS => return error.ReadOnlyFileSystem,
+                .NOMEM => return error.SystemResources,
+                else => return error.Unexpected,
+            }
+        }
+    }
+
+    /// `fsync` del directorio raíz: hace durables los `createFile`,
+    /// `renameEntry` y `deleteEntry` ya hechos. El fd de la raíz es `O_PATH`
+    /// en Linux (sólo búsqueda) y no se puede sincronizar: abre `.` debajo
+    /// para lectura, sincroniza y cierra.
+    pub fn syncDir(self: *const Root) SyncDirError!void {
+        const d = try zfs.openRaw(self.dir.fd, ".", .{ .ACCMODE = .RDONLY, .DIRECTORY = true, .CLOEXEC = true }, 0);
+        defer d.close();
+        try d.sync();
+    }
+
+    /// Recorre las entradas directas de la raíz (sin `.` ni `..`). Cierra el
+    /// iterador con `close`. Borrar con `deleteEntry` la entrada que se acaba
+    /// de recibir es seguro; si una entrada creada o borrada por otro durante
+    /// el recorrido aparece o no, POSIX no lo fija.
+    pub fn entries(self: *const Root) EntriesError!Entries {
+        const d = try zfs.openRaw(self.dir.fd, ".", .{ .ACCMODE = .RDONLY, .DIRECTORY = true, .CLOEXEC = true }, 0);
+        const stream = c.fdopendir(d.fd) orelse {
+            d.close();
+            return error.SystemResources;
+        };
+        return .{ .stream = stream };
+    }
+
     /// Atajo: `abs` debe estar léxicamente bajo `root_path` (la misma ruta
     /// con la que se abrió la raíz), y se abre su parte relativa.
     pub fn openAbsolute(self: *const Root, root_path: []const u8, abs: []const u8, opts: OpenOptions) Error!Opened {
@@ -253,6 +376,29 @@ pub const Root = struct {
             cur = next;
         }
         return cur;
+    }
+};
+
+/// Iterador de `Root.entries`.
+pub const Entries = struct {
+    stream: *c.DIR,
+
+    /// Nombre de la siguiente entrada, o null al acabar (o si el sistema
+    /// falla leyendo: no hay forma de distinguirlo sin errno, y para quien
+    /// barre un directorio es lo mismo). El slice vale hasta el siguiente
+    /// `next` o `close`.
+    pub fn next(self: *Entries) ?[]const u8 {
+        while (c.readdir(self.stream)) |ent| {
+            const name = std.mem.sliceTo(@as([*:0]const u8, @ptrCast(&ent.name)), 0);
+            if (std.mem.eql(u8, name, ".") or std.mem.eql(u8, name, "..")) continue;
+            return name;
+        }
+        return null;
+    }
+
+    pub fn close(self: *Entries) void {
+        _ = c.closedir(self.stream);
+        self.* = undefined;
     }
 };
 
@@ -510,4 +656,114 @@ test "Root: identidad dev/ino estable y openAbsolute con frontera" {
     try testing.expect(a.identity().eql(try FileIdentity.ofFile(b.file)));
     const sibling = try fx.print("{s}x/ok.bin", .{root_abs});
     try testing.expectError(error.PathEscapesRoot, root.openAbsolute(root_abs, sibling, .{}));
+}
+
+test "validateEntryName: un solo componente" {
+    try validateEntryName("a.part");
+    try validateEntryName("..a");
+    try testing.expectError(error.EmptyPath, validateEntryName(""));
+    try testing.expectError(error.NotAnEntryName, validateEntryName("."));
+    try testing.expectError(error.NotAnEntryName, validateEntryName(".."));
+    try testing.expectError(error.NotAnEntryName, validateEntryName("sub/deep.bin"));
+    try testing.expectError(error.NotAnEntryName, validateEntryName("/etc"));
+    try testing.expectError(error.NotAnEntryName, validateEntryName("a/"));
+    try testing.expectError(error.NameTooLong, validateEntryName("a\x00b"));
+}
+
+/// ¿Existe `name` (sin seguir un symlink final)?
+fn exists(fx: *Fixture, name: []const u8) !bool {
+    const p = try fx.path(name);
+    if (builtin.os.tag == .linux) {
+        const linux = std.os.linux;
+        var stx: linux.Statx = undefined;
+        return linux.errno(linux.statx(c.AT.FDCWD, p, linux.AT.SYMLINK_NOFOLLOW, .{ .TYPE = true }, &stx)) == .SUCCESS;
+    }
+    var st: c.Stat = undefined;
+    return c.fstatat(c.AT.FDCWD, p, &st, c.AT.SYMLINK_NOFOLLOW) == 0;
+}
+
+test "Root.deleteEntry: borra el enlace, nunca lo que apunta; no baja a subdirectorios" {
+    var fx = Fixture.init();
+    defer fx.deinit();
+    var root = try Root.open(try buildTree(&fx));
+    defer root.close();
+
+    try root.deleteEntry("ok.bin");
+    try testing.expect(!try exists(&fx, "root/ok.bin"));
+    // Symlink que escapa: se borra él; outside.bin sigue ahí.
+    try root.deleteEntry("link_out");
+    try testing.expect(!try exists(&fx, "root/link_out"));
+    try testing.expect(try exists(&fx, "outside.bin"));
+    // Symlink de directorio: el enlace, no el directorio.
+    try root.deleteEntry("dirlink");
+    try testing.expect(try exists(&fx, "root/sub/deep.bin"));
+    try testing.expectError(error.IsDir, root.deleteEntry("sub"));
+    try testing.expectError(error.FileNotFound, root.deleteEntry("ok.bin"));
+    try testing.expectError(error.NotAnEntryName, root.deleteEntry("sub/deep.bin"));
+    try testing.expectError(error.NotAnEntryName, root.deleteEntry(".."));
+    try testing.expectError(error.NotAnEntryName, root.deleteEntry("../outside.bin"));
+    try testing.expect(try exists(&fx, "root/sub/deep.bin"));
+    try testing.expect(try exists(&fx, "outside.bin"));
+}
+
+test "Root.renameEntry: atómico dentro de la raíz; un symlink plantado en el destino se reemplaza, no se sigue" {
+    var fx = Fixture.init();
+    defer fx.deinit();
+    var root = try Root.open(try buildTree(&fx));
+    defer root.close();
+
+    _ = try fx.writeFile("root/a.part", "NEW");
+    // `link_out` apunta fuera: renombrar encima sustituye el enlace.
+    try root.renameEntry("a.part", "link_out");
+    try root.syncDir();
+    try testing.expect(!try exists(&fx, "root/a.part"));
+    const o = try root.openFile("link_out", .{}); // regular ya: .reject no salta
+    defer o.file.close();
+    try testing.expectEqualStrings("NEW", (try readAll(o))[0..3]);
+    const out = try zfs.readFileAlloc(testing.allocator, try fx.path("outside.bin"), 64);
+    defer testing.allocator.free(out);
+    try testing.expectEqualStrings("SECRET", out);
+
+    try testing.expectError(error.NotAnEntryName, root.renameEntry("ok.bin", "../escaped"));
+    try testing.expectError(error.NotAnEntryName, root.renameEntry("ok.bin", "sub/moved"));
+    try testing.expectError(error.NotAnEntryName, root.renameEntry("sub/deep.bin", "deep.bin"));
+    try testing.expectError(error.FileNotFound, root.renameEntry("missing", "x"));
+    try testing.expect(try exists(&fx, "root/ok.bin"));
+}
+
+test "Root.entries: lista las entradas directas (sin . ni ..) y admite borrar la actual mientras barre" {
+    var fx = Fixture.init();
+    defer fx.deinit();
+    var root = try Root.open(try buildTree(&fx));
+    defer root.close();
+
+    var seen: std.StringHashMapUnmanaged(void) = .empty;
+    defer {
+        var it = seen.keyIterator();
+        while (it.next()) |k| testing.allocator.free(k.*);
+        seen.deinit(testing.allocator);
+    }
+    {
+        var it = try root.entries();
+        defer it.close();
+        while (it.next()) |name| try seen.put(testing.allocator, try testing.allocator.dupe(u8, name), {});
+    }
+    try testing.expectEqual(@as(u32, 6), seen.count());
+    for ([_][]const u8{ "ok.bin", "sub", "link_in", "link_out", "dirlink", "fifo" }) |n| try testing.expect(seen.contains(n));
+
+    // Barrido: borrar los `link_*` mientras se recorre.
+    var removed: u32 = 0;
+    {
+        var it = try root.entries();
+        defer it.close();
+        while (it.next()) |name| {
+            if (!std.mem.startsWith(u8, name, "link_")) continue;
+            try root.deleteEntry(name);
+            removed += 1;
+        }
+    }
+    try testing.expectEqual(@as(u32, 2), removed);
+    try testing.expect(!try exists(&fx, "root/link_in"));
+    try testing.expect(try exists(&fx, "root/ok.bin"));
+    try testing.expect(try exists(&fx, "outside.bin"));
 }

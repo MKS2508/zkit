@@ -60,7 +60,7 @@ Cada pieza convierte una clase de bug en imposible o en fallo determinista:
 |---|---|
 | `Handle(Tag)` / `TypedSlab` | UAF por handle obsoleto (generación) y confusión de handles (tipo por `Tag`, error de compilación) |
 | `Budget` / `BudgetAllocator` | memoria sin cota por sesión/usuario, leaks sin informe, contabilidad no independiente |
-| `fs.Root` | path traversal, symlinks que escapan, TOCTOU (openat2 `RESOLVE_BENEATH` o recorrido `O_NOFOLLOW` fd a fd), FIFOs |
+| `fs.Root` | path traversal, symlinks que escapan, TOCTOU (openat2 `RESOLVE_BENEATH` o recorrido `O_NOFOLLOW` fd a fd), FIFOs; entradas directas de la raíz (`deleteEntry`, `renameEntry`, `entries`, `syncDir`: un solo componente, el enlace nunca se sigue) para un servidor que gestiona su staging |
 | `BoundedReader` / `BitReader` | lecturas fuera de límites, longitudes del wire sin validar, varints QUIC / VINT EBML / Exp-Golomb hostiles |
 | `checked` | desbordes en offsets/longitudes (`checkRange` nunca calcula `offset + len`) |
 | `Mutex` | unlock ajeno, autodeadlock, inversión de orden de locks (niveles) |
