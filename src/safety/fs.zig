@@ -692,6 +692,9 @@ test "Root: TOCTOU — cambiar un directorio intermedio por un symlink tras abri
 test "Root: un montaje bajo la raíz (tmpfs, o bind de un fichero de fuera: mismo dev) no se cruza con ningún resolvedor; .cross lo admite" {
     if (builtin.os.tag != .linux) return error.SkipZigTest;
     const linux = std.os.linux;
+    // umount2(2) MNT_DETACH: un montaje aún en uso (un fichero abierto en una
+    // ejecución en rojo) se desengancha igual, en vez de quedarse tras el test.
+    const MNT_DETACH: u32 = 2;
     var fx = Fixture.init();
     defer fx.deinit();
     const root_path = try buildTree(&fx);
@@ -705,9 +708,9 @@ test "Root: un montaje bajo la raíz (tmpfs, o bind de un fichero de fuera: mism
         .PERM, .ACCES => return error.SkipZigTest,
         else => return error.MountFailed,
     }
-    defer _ = linux.umount2(mnt, 0);
+    defer _ = linux.umount2(mnt, MNT_DETACH);
     if (linux.errno(linux.mount(secret, bind, null, linux.MS.BIND, 0)) != .SUCCESS) return error.MountFailed;
-    defer _ = linux.umount2(bind, 0);
+    defer _ = linux.umount2(bind, MNT_DETACH);
     _ = try fx.writeFile("root/mnt/x.bin", "TMPFS");
 
     var root = try Root.open(root_path);
