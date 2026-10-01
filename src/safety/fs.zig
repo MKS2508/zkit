@@ -229,6 +229,54 @@ pub const Root = struct {
         return .{ .dir = d, .identity = .{ .dev = st.dev, .ino = st.ino }, .mount_id = mountIdOf(d.fd) };
     }
 
+    pub const OwnedError = Error || zfs.MakeDirError || error{
+        /// El directorio es de otro uid: quien lo creó antes que este
+        /// proceso decide qué hay dentro (symlinks o ficheros plantados).
+        NotOwned,
+        /// Grupo u otros tienen algún permiso sobre él: pueden listarlo,
+        /// leer lo que se escriba o crear entradas.
+        AccessibleByOthers,
+    };
+
+    pub const OwnedOptions = struct {
+        /// Crear el directorio (0700) si no existe. Los padres deben existir.
+        create: bool = true,
+    };
+
+    /// Abre un directorio PRIVADO del proceso (estado, caché, staging: lo
+    /// que nadie más debe leer ni escribir) como raíz, y lo crea 0700 si no
+    /// existe. A diferencia de `open`, la ruta la fija el proceso y un
+    /// directorio que ya estaba ahí no se acepta sin más: con un nombre
+    /// predecible en un directorio compartido (`/tmp/x`), otro usuario lo
+    /// crea antes y es suyo. Se exige:
+    ///   - el último componente no es un symlink (O_NOFOLLOW);
+    ///   - propietario = uid efectivo del proceso (`NotOwned` si no);
+    ///   - sin ningún permiso de grupo ni de otros (`AccessibleByOthers`).
+    /// La comprobación es sobre el fd ya abierto, no sobre la ruta: lo que
+    /// se valida es lo que se usará. Las entradas se crean después con
+    /// `createFile` (O_EXCL, 0600 por defecto) y se borran con `deleteEntry`.
+    pub fn openOwned(path: []const u8, opts: OwnedOptions) OwnedError!Root {
+        var buf: [zfs.max_path_bytes]u8 = undefined;
+        const z = try zfs.pathZ(path, &buf);
+        if (opts.create) zfs.makeDirAt(c.AT.FDCWD, z, .{ .mode = 0o700 }) catch |err| switch (err) {
+            // Ya existe (directorio, fichero o symlink): lo decide lo de abajo.
+            error.PathAlreadyExists => {},
+            else => |e| return e,
+        };
+        const d = zfs.openRaw(c.AT.FDCWD, z, dirFlags(true), 0) catch |err| return switch (err) {
+            // O_NOFOLLOW|O_DIRECTORY sobre un symlink: ELOOP o ENOTDIR.
+            error.SymLinkLoop => error.SymlinkRejected,
+            error.NotDir => if (isSymlinkAt(c.AT.FDCWD, z)) error.SymlinkRejected else error.NotDir,
+            else => |e| e,
+        };
+        errdefer d.close();
+        const st = try d.stat();
+        if (st.kind != .directory) return error.NotDir;
+        if (st.uid != c.geteuid()) return error.NotOwned;
+        if (st.mode & 0o077 != 0) return error.AccessibleByOthers;
+        return .{ .dir = d, .identity = .{ .dev = st.dev, .ino = st.ino }, .mount_id = mountIdOf(d.fd) };
+    }
+
     pub fn close(self: *Root) void {
         self.dir.close();
         self.* = undefined;
@@ -753,6 +801,50 @@ test "Root: createFile exclusivo no sigue un symlink plantado; makeDir bajo la r
     defer o.file.close();
     try testing.expectEqual(@as(u64, 5), o.stat.size);
     try testing.expectEqual(@as(u32, 0o600), o.stat.mode & 0o777);
+}
+
+extern "c" fn chown(path: [*:0]const u8, owner: c.uid_t, group: c.gid_t) c_int;
+
+test "Root.openOwned: crea 0700; rechaza un directorio ajeno, abierto a otros, un symlink o un fichero en su lugar" {
+    var fx = Fixture.init();
+    defer fx.deinit();
+    // No existía: se crea 0700 y es del proceso.
+    var fresh = try Root.openOwned(try fx.path("state"), .{});
+    const st = try fresh.dir.stat();
+    try testing.expectEqual(@as(u32, 0o700), st.mode & 0o777);
+    try testing.expectEqual(@as(u32, c.geteuid()), st.uid);
+    const f = try fresh.createFile("a.l2", .{});
+    f.close();
+    fresh.close();
+    // Ya existía y es privado: se reabre (reinicio del proceso).
+    var again = try Root.openOwned(try fx.path("state"), .{});
+    try testing.expectError(error.PathAlreadyExists, again.createFile("a.l2", .{}));
+    again.close();
+    // Sin `create`, uno que no existe no se inventa.
+    try testing.expectError(error.FileNotFound, Root.openOwned(try fx.path("nope"), .{ .create = false }));
+
+    // Preexistente con permisos para otros (lo que hacía `mkdir 0755` en /tmp).
+    const open_dir = try fx.mkdir("shared");
+    try testing.expectEqual(@as(c_int, 0), c.chmod(open_dir, 0o755));
+    try testing.expectError(error.AccessibleByOthers, Root.openOwned(open_dir, .{}));
+    try testing.expectEqual(@as(c_int, 0), c.chmod(open_dir, 0o730));
+    try testing.expectError(error.AccessibleByOthers, Root.openOwned(open_dir, .{}));
+
+    // Un symlink plantado con el nombre, aunque apunte a un directorio
+    // privado del propio proceso: no se sigue.
+    try testing.expectEqual(@as(c_int, 0), c.symlink("state", try fx.path("planted")));
+    try testing.expectError(error.SymlinkRejected, Root.openOwned(try fx.path("planted"), .{}));
+    // Un fichero con el nombre.
+    _ = try fx.writeFile("file", "x");
+    try testing.expectError(error.NotDir, Root.openOwned(try fx.path("file"), .{}));
+
+    // De otro uid (sólo se puede preparar como root: chown a nobody).
+    if (c.geteuid() == 0) {
+        const theirs = try fx.mkdir("theirs");
+        try testing.expectEqual(@as(c_int, 0), c.chmod(theirs, 0o700));
+        try testing.expectEqual(@as(c_int, 0), chown(theirs, 65534, 65534));
+        try testing.expectError(error.NotOwned, Root.openOwned(theirs, .{}));
+    }
 }
 
 test "Root: identidad dev/ino estable y openAbsolute con frontera" {

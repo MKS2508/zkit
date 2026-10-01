@@ -77,6 +77,8 @@ pub const Stat = struct {
     dev: u64,
     ino: u64,
     mode: u32,
+    /// Propietario (uid efectivo que lo creó, o el de `chown`).
+    uid: u32,
 };
 
 /// Descriptor de fichero propio. `close` lo libera; no hay finalizador.
@@ -170,7 +172,7 @@ pub fn statFd(fd: fd_t) StatError!Stat {
     if (builtin.os.tag == .linux) {
         const linux = std.os.linux;
         var stx: linux.Statx = undefined;
-        const rc = linux.statx(fd, "", linux.AT.EMPTY_PATH, .{ .TYPE = true, .MODE = true, .SIZE = true, .INO = true }, &stx);
+        const rc = linux.statx(fd, "", linux.AT.EMPTY_PATH, .{ .TYPE = true, .MODE = true, .SIZE = true, .INO = true, .UID = true }, &stx);
         switch (linux.errno(rc)) {
             .SUCCESS => {},
             .ACCES => return error.AccessDenied,
@@ -183,6 +185,7 @@ pub fn statFd(fd: fd_t) StatError!Stat {
             .dev = (@as(u64, stx.dev_major) << 32) | stx.dev_minor,
             .ino = stx.ino,
             .mode = stx.mode,
+            .uid = stx.uid,
         };
     } else {
         var st: c.Stat = undefined;
@@ -197,6 +200,7 @@ pub fn statFd(fd: fd_t) StatError!Stat {
             .dev = @intCast(st.dev),
             .ino = @intCast(st.ino),
             .mode = @intCast(st.mode),
+            .uid = @intCast(st.uid),
         };
     }
 }
