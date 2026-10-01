@@ -82,7 +82,9 @@ pub fn ReorderBuffer(comptime T: type) type {
         /// The allocator is retained for deinit.
         pub fn init(allocator: std.mem.Allocator, bound: usize) !Self {
             const states = try allocator.alloc(SlotState, bound);
+            errdefer allocator.free(states);
             const seqs = try allocator.alloc(SequenceNumber, bound);
+            errdefer allocator.free(seqs);
             const values = try allocator.alloc(T, bound);
             @memset(states, .free);
             return .{
@@ -819,4 +821,17 @@ test "gapTimeout during resetting is no-op" {
     // gapTimeout while already resetting — no-op.
     buf.gapTimeout(0);
     try testing.expect(buf.isResetting()); // still resetting
+}
+
+test "init under OOM at any of its allocations leaks nothing (ZSDK3-P3-02)" {
+    // Without errdefer, a failure on `seqs` or `values` leaked the arrays
+    // already reserved: under memory pressure each failed init eroded the
+    // budget of the conduit server that builds one per upload.
+    const Buf = ReorderBuffer(u64);
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, struct {
+        fn run(a: std.mem.Allocator) !void {
+            var rb = try Buf.init(a, 8);
+            rb.deinit();
+        }
+    }.run, .{});
 }
