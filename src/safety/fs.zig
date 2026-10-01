@@ -373,6 +373,26 @@ pub const Root = struct {
         try d.sync();
     }
 
+    pub const SpaceError = error{
+        /// Sólo Linux de 64 bits: en otro sistema no hay `fstatfs` de este
+        /// módulo (quien llama decide si eso es fallar cerrado).
+        Unsupported,
+        Unexpected,
+    };
+
+    /// Bytes que un proceso sin privilegios puede escribir aún en el sistema
+    /// de ficheros de la raíz (`f_bavail × f_bsize` de `fstatfs` sobre el fd
+    /// de la raíz, el mismo que usan las aperturas: no se resuelve ninguna
+    /// ruta). Satura en `maxInt(u64)`.
+    pub fn availableBytes(self: *const Root) SpaceError!u64 {
+        if (builtin.os.tag != .linux or @sizeOf(usize) != 8) return error.Unsupported;
+        const linux = std.os.linux;
+        var st: Statfs64 = undefined;
+        const rc = linux.syscall2(.fstatfs, @bitCast(@as(isize, self.dir.fd)), @intFromPtr(&st));
+        if (linux.errno(rc) != .SUCCESS) return error.Unexpected;
+        return std.math.mul(u64, st.bavail, st.bsize) catch std.math.maxInt(u64);
+    }
+
     /// Recorre las entradas directas de la raíz (sin `.` ni `..`). Cierra el
     /// iterador con `close`. Borrar con `deleteEntry` la entrada que se acaba
     /// de recibir es seguro; si una entrada creada o borrada por otro durante
@@ -529,6 +549,27 @@ fn unlinkResult(e: posix.E, dir: posix.fd_t, name: [*:0]const u8) DeleteError!vo
     };
 }
 
+/// `struct statfs` de Linux en arquitecturas de 64 bits (asm-generic y
+/// x86_64: todos los campos `__kernel_long_t`/`u64`, 120 bytes).
+const Statfs64 = extern struct {
+    type: i64,
+    bsize: u64,
+    blocks: u64,
+    bfree: u64,
+    bavail: u64,
+    files: u64,
+    ffree: u64,
+    fsid: [2]i32,
+    namelen: i64,
+    frsize: i64,
+    flags: i64,
+    spare: [4]i64,
+};
+
+comptime {
+    std.debug.assert(@sizeOf(Statfs64) == 120);
+}
+
 /// ¿Es `name` (sin seguir un symlink final) un directorio? `false` si no se
 /// puede saber.
 fn isDirAt(dir: posix.fd_t, name: [*:0]const u8) bool {
@@ -662,6 +703,25 @@ fn readAll(o: Opened) ![16]u8 {
     var b: [16]u8 = @splat(0);
     _ = try o.file.readAllAt(&b, 0);
     return b;
+}
+
+test "Root.availableBytes: el espacio libre del sistema de ficheros de la raíz, y baja al escribir" {
+    if (builtin.os.tag != .linux) return error.SkipZigTest;
+    var fx = Fixture.init();
+    defer fx.deinit();
+    var root = try Root.open(try fx.mkdir("space"));
+    defer root.close();
+    const before = try root.availableBytes();
+    try std.testing.expect(before > 0);
+    // 8 MiB escritos de verdad (no un fichero disperso) bajan lo disponible.
+    var f = try root.createFile("blob", .{});
+    defer f.close();
+    const chunk: [65536]u8 = @splat(0x5a);
+    for (0..128) |_| try f.writeAll(&chunk);
+    try f.sync();
+    const after = try root.availableBytes();
+    try std.testing.expect(after < before);
+    try std.testing.expect(before - after >= 4 << 20);
 }
 
 test "Root: contención con ambos resolvedores (openat2 y recorrido)" {
