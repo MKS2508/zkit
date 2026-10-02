@@ -45,8 +45,8 @@ re-descubras) y el DAG de nodos con su `owner`.
 
 ## Toolchain
 
-`0.17.0-dev.1893+78e3b1c73`. Es lo que hay en el PATH vía `zv`; volver atrás es
-`zv use <version>`. (El `~/.local/zig-master/` que citaba este doc **ya no existe**
+`0.17.0` estable (antes `0.17.0-dev.1893+78e3b1c73`). Es lo que hay en el PATH vía
+`zv`; volver atrás es `zv use <version>`. (El `~/.local/zig-master/` que citaba este doc **ya no existe**
 — si lo ves mencionado en algún sitio, está stale.)
 
 `minimum_zig_version` del `.zon` **no para ningún build**: el build runner nunca lo
@@ -55,9 +55,9 @@ comprueba, y un manifest que declare `0.99.0` compila con cualquier toolchain. L
 
 ```zig
 comptime {
-    const required = std.SemanticVersion.parse("0.17.0-dev.1893+78e3b1c73") catch unreachable;
+    const required = std.SemanticVersion.parse("0.17.0") catch unreachable;
     if (builtin.zig_version.order(required) == .lt) {
-        @compileError("zkit requires Zig >= 0.17.0-dev.1893+78e3b1c73, found " ++
+        @compileError("zkit requires Zig >= 0.17.0, found " ++
             builtin.zig_version_string);
     }
 }
@@ -96,7 +96,7 @@ sustituto de la skill.
   nuevo ⇒ una línea en el bloque `test` de `root.zig`.
 - **Lanes**: `-Dtsan=true` (ThreadSanitizer) con canario
   `-Dtsan-canary=true` que TIENE que fallar; `-Doptimize=ReleaseSafe`;
-  `zig build fuzz` (corpus; `--fuzz=N` está roto en 1893, ver README).
+  `zig build fuzz` (corpus; `--fuzz=N` está roto en 1893 y en 0.17.0, ver README).
 - **Guards comptime** en `test/compile_errors/` + lista en `build.zig`: un
   guard nuevo (un `@compileError`) entra con su caso que TIENE que fallar.
 - Todo lo que tiene hilos lleva un test de estrés que corre bajo TSAN; todo
