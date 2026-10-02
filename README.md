@@ -3,7 +3,7 @@
 Infraestructura Zig reutilizable cross-project: las piezas que varios repos
 estaban escribiendo por separado, o que sólo existían en uno.
 
-`Zig 0.17.0-dev.1893+78e3b1c73` · repo público (verificado en la API de GitHub el 2026-09-03) · **consumido en producción por hyperdiff y styx**
+`Zig 0.17.0` (estable) · repo público (verificado en la API de GitHub el 2026-09-03) · **consumido en producción por hyperdiff y styx**
 
 ## Estado
 
@@ -83,9 +83,10 @@ zig build fuzz                       # corpus de los tests std.testing.fuzz
 - `test/compile_errors/`: código que zkit debe rechazar al compilar
   (ErrorSpace incompleto, handles de tags distintos mezclados, …). El paso pasa
   sólo si la compilación falla con el mensaje esperado.
-- `zig build fuzz --fuzz=N` (guiado por cobertura) falla hoy en
-  0.17.0-dev.1893 con `corrupted coverage file … pcs_len was zero`, también
-  con un test standalone sin zkit: bug del toolchain. Los barridos
+- `zig build fuzz --fuzz=N` (guiado por cobertura) falla en
+  0.17.0-dev.1893 y sigue fallando en 0.17.0 estable con `corrupted coverage
+  file … pcs_len was zero`, también con un test standalone sin zkit: bug del
+  toolchain. Los barridos
   deterministas de `safety.fuzz` corren en `zig build test`.
 
 ## Qué NO va a contener, y por qué
