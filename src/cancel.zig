@@ -55,14 +55,21 @@ test "CancelToken: propio, enganchado y soltado" {
 
 test "CancelToken: cancelado desde otro hilo lo ve el trabajador (TSAN)" {
     var tok: CancelToken = .{};
+    // El trabajador avisa tras su primera vuelta: cancelar antes de que el
+    // planificador lo arranque dejaría `iters == 0` con la CPU cargada (un
+    // sleep fijo no lo garantiza).
+    var started: std.atomic.Value(bool) = .init(false);
     const W = struct {
-        fn run(t: *CancelToken, iters: *u64) void {
-            while (!t.isCancelled()) iters.* += 1;
+        fn run(t: *CancelToken, iters: *u64, s: *std.atomic.Value(bool)) void {
+            while (!t.isCancelled()) {
+                iters.* += 1;
+                s.store(true, .release);
+            }
         }
     };
     var iters: u64 = 0;
-    const th = try std.Thread.spawn(.{}, W.run, .{ &tok, &iters });
-    @import("time.zig").sleepNs(2 * std.time.ns_per_ms);
+    const th = try std.Thread.spawn(.{}, W.run, .{ &tok, &iters, &started });
+    while (!started.load(.acquire)) std.Thread.yield() catch {};
     tok.cancel();
     th.join();
     try testing.expect(iters > 0);
